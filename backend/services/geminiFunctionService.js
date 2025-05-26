@@ -34,15 +34,19 @@ const mongoCountTool = {
 
 
 export async function generateAudioReplyWithDbFunction(userText, systemInstruction = "") {
-  const turns = [];
+  const userTurn = { role: "user", parts: [{ text: userText }] };
+  let systemInstructionPayload;
+
   if (systemInstruction && systemInstruction.trim().length > 0) {
-    turns.push({ role: "system", parts: [{ text: systemInstruction.trim() }] });
+    systemInstructionPayload = { 
+      parts: [{ text: systemInstruction.trim() }] 
+    };
   }
-  turns.push({ role: "user", parts: [{ text: userText }] });
 
   const firstResp = await ai.models.generateContent({
     model: FUNCTION_MODEL_ID,
-    contents: turns,
+    contents: [userTurn],   
+    systemInstruction: systemInstructionPayload,    
     config: {
       temperature: 0,
       topP: 0.0,
@@ -67,12 +71,10 @@ export async function generateAudioReplyWithDbFunction(userText, systemInstructi
   }
 
   const firstPart = findFuncPart(candidate);
-  // console.log("First part for function call check:", JSON.stringify(firstPart, null, 2)); // For debugging
 
   if (firstPart.functionCall && firstPart.functionCall.name === "get_document_count") {
-    // console.log("Function call detected:", JSON.stringify(firstPart.functionCall, null, 2)); // For debugging
     const { collection } = firstPart.functionCall.args || {};
-    let countResult = 0; // Default to 0 if not found or error
+    let countResult = 0; 
     let functionCallSuccessful = false;
     let errorMessage = "";
 
@@ -80,16 +82,13 @@ export async function generateAudioReplyWithDbFunction(userText, systemInstructi
       if (!collection || typeof collection !== 'string' || collection.trim() === '') {
         console.error("LLM provided invalid collection name:", collection);
         errorMessage = `Invalid collection name '${collection}' was provided for counting.`;
-        // countResult remains 0, functionCallSuccessful remains false
       } else {
         countResult = await getCollectionCount(collection);
         functionCallSuccessful = true;
-        // console.log(`Count for collection '${collection}': ${countResult}`); // For debugging
       }
     } catch (err) {
       console.error(`Error running getCollectionCount for '${collection}':`, err);
       errorMessage = `Failed to retrieve count for collection '${collection}'. Database operation failed: ${err.message}`; 
-      // countResult remains 0, functionCallSuccessful remains false
     }
 
     const funcRespPayload = {
@@ -107,7 +106,7 @@ export async function generateAudioReplyWithDbFunction(userText, systemInstructi
     }
 
     const secondCallContents = [
-      ...turns,
+      userTurn, // Original user turn
       {
         role: "model",
         parts: [firstPart],
@@ -121,7 +120,8 @@ export async function generateAudioReplyWithDbFunction(userText, systemInstructi
 
     const followResp = await ai.models.generateContent({
       model: FUNCTION_MODEL_ID,
-      contents: secondCallContents,
+      contents: secondCallContents, // Conversational history
+      systemInstruction: systemInstructionPayload, // Pass system instruction here again
       config: {
         temperature: 0,
         topP: 0.0,
