@@ -28,6 +28,23 @@ if (!process.env.GEMINI_API_KEY) {
   process.exit(1);
 }
 
+// REST API endpoint for /ask
+app.post('/ask', async (req, res) => {
+  try {
+    const { message, systemInstruction = "" } = req.body;
+    
+    if (!message || typeof message !== "string") {
+      return res.status(400).json({ error: "'message' is required" });
+    }
+    
+    const result = await generateAudioReplyWithDbFunction(message, systemInstruction);
+    res.json(result);
+  } catch (err) {
+    console.error('REST API Error:', err);
+    res.status(500).json({ error: "Failed to generate response" });
+  }
+});
+
 // Socket.io handler
 io.on("connection", (socket) => {
   console.log("Socket client connected", socket.id);

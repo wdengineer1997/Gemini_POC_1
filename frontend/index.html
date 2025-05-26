@@ -4,58 +4,88 @@
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Gemini POC 1</title>
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        margin: 0;
-        padding: 1rem;
-        background: #f2f2f2;
-      }
-      #chat {
-        background: #fff;
-        padding: 1rem;
-        border-radius: 8px;
-        max-width: 600px;
-        margin: 0 auto;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      }
-      .message {
-        margin-bottom: 1rem;
-      }
-      .user {
-        text-align: right;
-        color: #1a73e8;
-      }
-      .assistant {
-        text-align: left;
-        color: #222;
-      }
-      #micBtn {
-        background: #1a73e8;
-        color: #fff;
-        border: none;
-        padding: 0.8rem 1.2rem;
-        border-radius: 50%;
-        cursor: pointer;
-        font-size: 1.2rem;
-        outline: none;
-      }
-      #micBtn.listening {
-        background: #d93025;
-      }
-      #controls {
-        display: flex;
-        justify-content: center;
-        margin-top: 1rem;
-      }
-    </style>
+    <title>Gemini Voice Chat</title>
+    <link rel="stylesheet" href="styles/globals.css">
   </head>
   <body>
-    <h2 style="text-align:center">Gemini POC 1</h2>
-    <div id="chat"></div>
-    <div id="controls">
-      <button id="micBtn" title="Hold to talk">🎤</button>
+    <div class="main-container">
+      <div class="content-wrapper">
+        <!-- Header -->
+        <div class="header">
+          <h1 class="main-title">
+            🤖 Gemini Voice Chat
+          </h1>
+          <div class="status-container">
+            <div id="status-indicator" class="status-indicator status-disconnected">
+              <div class="status-dot"></div>
+              <span id="status-text">Disconnected</span>
+            </div>
+            <div id="listening-indicator" class="status-indicator listening-indicator hidden">
+              🎤 Listening...
+            </div>
+          </div>
+        </div>
+
+        <!-- System Instructions -->
+        <div class="card">
+          <h3 class="card-header">
+            ⚙️ System Instructions
+          </h3>
+          <textarea
+            id="systemInstr"
+            class="system-textarea"
+            placeholder="Enter optional system instructions (e.g. 'You are a friendly assistant who speaks like a pirate')"
+            rows="3"
+          ></textarea>
+        </div>
+
+        <!-- Chat Container -->
+        <div class="chat-container">
+          <div class="chat-header">
+            💬 Conversation
+          </div>
+          <div id="chat" class="chat-messages">
+            <div class="empty-state">
+              <div class="empty-icon">🗣️</div>
+              <p class="empty-title">Start a conversation by clicking the microphone</p>
+              <p class="empty-subtitle">Your voice will be converted to text and sent to Gemini</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls-container">
+          <button
+            id="micBtn"
+            class="mic-button mic-inactive"
+            title="Click to start listening"
+          >
+            🎤
+          </button>
+          <p id="control-text" class="control-text">
+            🎙️ Click to start voice conversation
+          </p>
+        </div>
+
+        <!-- Features -->
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon">🎙️</div>
+            <h4 class="feature-title">Voice Input</h4>
+            <p class="feature-description">Speak naturally and your voice will be converted to text using advanced speech recognition</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🧠</div>
+            <h4 class="feature-title">AI Processing</h4>
+            <p class="feature-description">Powered by Google's Gemini AI for intelligent, contextual responses</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🔊</div>
+            <h4 class="feature-title">Audio Output</h4>
+            <p class="feature-description">Get natural-sounding audio responses that you can hear clearly</p>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script src="script.js"></script>

@@ -5,13 +5,15 @@ export default function Home() {
   const [messages, setMessages] = useState([]);
   const [systemInstr, setSystemInstr] = useState("");
   const [listening, setListening] = useState(false);
+  const [socketStatus, setSocketStatus] = useState("disconnected");
   const shouldListenRef = useRef(false);
   const recognitionRef = useRef(null);
   const audioRef = useRef(null);
   const socketRef = useRef(null);
+  const chatContainerRef = useRef(null);
 
   const appendMessage = (text, sender) => {
-    setMessages((prev) => [...prev, { sender, text }]);
+    setMessages((prev) => [...prev, { sender, text, timestamp: new Date() }]);
   };
 
   const stopAudio = () => {
@@ -29,12 +31,34 @@ export default function Home() {
     audio.play();
   };
 
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [messages]);
+
   useEffect(() => {
     if (typeof window === "undefined") return; // SSR guard
-    // connect once on mount
-    socketRef.current = io(process.env.NEXT_PUBLIC_API_WS || "http://localhost:5000");
+    
+    setSocketStatus("connecting");
+    const socket = io(process.env.NEXT_PUBLIC_API_WS || "http://localhost:5000");
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      setSocketStatus("connected");
+    });
+
+    socket.on("disconnect", () => {
+      setSocketStatus("disconnected");
+    });
+
+    socket.on("connect_error", () => {
+      setSocketStatus("disconnected");
+    });
+
     return () => {
-      socketRef.current?.disconnect();
+      socket?.disconnect();
     };
   }, []);
 
@@ -70,7 +94,7 @@ export default function Home() {
       return null;
     }
     const recognition = new SpeechRecognition();
-    recognition.continuous = true; // keep mic open
+    recognition.continuous = true;
     recognition.lang = "en-US";
     recognition.interimResults = true;
 
@@ -82,19 +106,17 @@ export default function Home() {
     recognition.onend = () => {
       setListening(false);
       if (shouldListenRef.current) {
-        // restart automatically for continuous conversation
         recognition.start();
       }
     };
 
     recognition.onresult = async (event) => {
-      // iterate over results to find final transcripts
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
         if (result.isFinal) {
           const transcript = result[0].transcript.trim();
           if (!transcript) continue;
-          stopAudio(); // interrupt any current assistant speech
+          stopAudio();
           appendMessage(transcript, "user");
           await sendToBackend(transcript);
         }
@@ -106,16 +128,14 @@ export default function Home() {
 
   const toggleMic = () => {
     if (shouldListenRef.current) {
-      // stop listening completely and dispose of recognition instance
       shouldListenRef.current = false;
       if (recognitionRef.current) {
-        recognitionRef.current.onend = null; // prevent auto-restart logic
-        recognitionRef.current.abort(); // abort instead of stop to cancel quickly
+        recognitionRef.current.onend = null;
+        recognitionRef.current.abort();
         recognitionRef.current = null;
       }
       setListening(false);
     } else {
-      // start listening
       shouldListenRef.current = true;
       if (!recognitionRef.current) {
         recognitionRef.current = initRecognition();
@@ -124,79 +144,129 @@ export default function Home() {
     }
   };
 
-  return (
-    <div className="container">
-      <h2>Gemini POC 1</h2>
-      <textarea
-        placeholder="Enter optional system instructions (e.g. 'You are a friendly assistant')"
-        value={systemInstr}
-        onChange={(e) => setSystemInstr(e.target.value)}
-        rows={3}
-        style={{ width: "100%", marginBottom: "0.75rem" }}
-      />
-      <div className="chat">
-        {messages.map((m, idx) => (
-          <div key={idx} className={`message ${m.sender}`}>{m.text}</div>
-        ))}
-      </div>
-      <div className="controls">
-        <button
-          className={shouldListenRef.current ? "mic listening" : "mic"}
-          onClick={toggleMic}
-          title={shouldListenRef.current ? "Click to stop mic" : "Click to start mic"}
-        >
-          🎤
-        </button>
-      </div>
+  const getStatusClass = () => {
+    switch (socketStatus) {
+      case "connected": return "status-connected";
+      case "connecting": return "status-connecting";
+      default: return "status-disconnected";
+    }
+  };
 
-      <style jsx>{`
-        .container {
-          padding: 1rem;
-          font-family: Arial, sans-serif;
-          max-width: 600px;
-          margin: 0 auto;
-        }
-        h2 {
-          text-align: center;
-        }
-        .chat {
-          background: #fff;
-          padding: 1rem;
-          border-radius: 8px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-          max-height: 70vh;
-          overflow-y: auto;
-        }
-        .message {
-          margin-bottom: 1rem;
-        }
-        .user {
-          text-align: right;
-          color: #1a73e8;
-        }
-        .assistant {
-          text-align: left;
-          color: #222;
-        }
-        .controls {
-          display: flex;
-          justify-content: center;
-          margin-top: 1rem;
-        }
-        .mic {
-          background: #1a73e8;
-          color: #fff;
-          border: none;
-          padding: 0.8rem 1.2rem;
-          border-radius: 50%;
-          cursor: pointer;
-          font-size: 1.2rem;
-          outline: none;
-        }
-        .mic.listening {
-          background: #d93025;
-        }
-      `}</style>
+  const formatTime = (date) => {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  return (
+    <div className="main-container">
+      <div className="content-wrapper">
+        {/* Header */}
+        <div className="header">
+          <h1 className="main-title">
+            🤖 Gemini Voice Chat
+          </h1>
+          <div className="status-container">
+            <div className={`status-indicator ${getStatusClass()}`}>
+              <div className="status-dot"></div>
+              {socketStatus === "connected" && "Connected"}
+              {socketStatus === "connecting" && "Connecting..."}
+              {socketStatus === "disconnected" && "Disconnected"}
+            </div>
+            {listening && (
+              <div className="status-indicator listening-indicator">
+                🎤 Listening...
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* System Instructions */}
+        <div className="card">
+          <h3 className="card-header">
+            ⚙️ System Instructions
+          </h3>
+          <textarea
+            className="system-textarea"
+            placeholder="Enter optional system instructions (e.g. 'You are a friendly assistant who speaks like a pirate')"
+            value={systemInstr}
+            onChange={(e) => setSystemInstr(e.target.value)}
+            rows={3}
+          />
+        </div>
+
+        {/* Chat Container */}
+        <div className="chat-container">
+          <div className="chat-header">
+            💬 Conversation
+          </div>
+          <div 
+            ref={chatContainerRef}
+            className="chat-messages"
+          >
+            {messages.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">🗣️</div>
+                <p className="empty-title">Start a conversation by clicking the microphone</p>
+                <p className="empty-subtitle">Your voice will be converted to text and sent to Gemini</p>
+              </div>
+            ) : (
+              messages.map((message, idx) => (
+                <div key={idx} className={`message-container ${message.sender}`}>
+                  <div className={`message-bubble ${message.sender === 'user' ? 'user-message' : 'assistant-message'}`}>
+                    <div className="message-avatar">
+                      {message.sender === 'user' ? '👤' : '🤖'}
+                    </div>
+                    <div className="message-content">
+                      <p className="message-text">{message.text}</p>
+                      <p className="message-time">
+                        {formatTime(message.timestamp)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div className="controls-container">
+          <button
+            className={`mic-button ${shouldListenRef.current ? 'mic-active' : 'mic-inactive'}`}
+            onClick={toggleMic}
+            title={shouldListenRef.current ? "Click to stop listening" : "Click to start listening"}
+            disabled={socketStatus !== "connected"}
+          >
+            {listening ? '🛑' : '🎤'}
+          </button>
+          <p className="control-text">
+            {socketStatus !== "connected" 
+              ? "⏳ Waiting for server connection..." 
+              : shouldListenRef.current 
+                ? "🔴 Click to stop listening" 
+                : "🎙️ Click to start voice conversation"
+            }
+          </p>
+        </div>
+
+        {/* Features */}
+        <div className="features-grid">
+          <div className="feature-card">
+            <div className="feature-icon">🎙️</div>
+            <h4 className="feature-title">Voice Input</h4>
+            <p className="feature-description">Speak naturally and your voice will be converted to text using advanced speech recognition</p>
+          </div>
+          <div className="feature-card">
+            <div className="feature-icon">🧠</div>
+            <h4 className="feature-title">AI Processing</h4>
+            <p className="feature-description">Powered by Google's Gemini AI for intelligent, contextual responses</p>
+          </div>
+          <div className="feature-card">
+            <div className="feature-icon">🔊</div>
+            <h4 className="feature-title">Audio Output</h4>
+            <p className="feature-description">Get natural-sounding audio responses that you can hear clearly</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 } 
