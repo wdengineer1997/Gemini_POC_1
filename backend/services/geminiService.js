@@ -1,5 +1,6 @@
 import { GoogleGenAI, Modality, MediaResolution } from "@google/genai";
 import dotenv from "dotenv";
+import { EventEmitter } from "events";
 import { convertToWav } from "../utils/audio.js";
 
 dotenv.config();
@@ -13,6 +14,7 @@ const MODEL_ID = "models/gemini-2.0-flash-live-001";
 
 export async function generateAudioReply(text, systemInstruction = "") {
   const responseQueue = [];
+  const queueEmitter = new EventEmitter();
   const audioParts = [];
   let collectedText = "";
 
@@ -24,6 +26,7 @@ export async function generateAudioReply(text, systemInstruction = "") {
       },
       onmessage(message) {
         responseQueue.push(message);
+        queueEmitter.emit("msg");
       },
       onerror(e) {
         console.error("Live session error", e.message);
@@ -55,7 +58,7 @@ export async function generateAudioReply(text, systemInstruction = "") {
 
   let done = false;
   while (!done) {
-    const message = await waitMessage(responseQueue);
+    const message = await waitMessage(responseQueue, queueEmitter);
     const parts = message.serverContent?.modelTurn?.parts;
     if (parts && parts.length) {
       const part = parts[0];
@@ -80,14 +83,17 @@ export async function generateAudioReply(text, systemInstruction = "") {
   return { text: collectedText, audioBase64: base64Audio, mimeType: "audio/wav" };
 }
 
-function waitMessage(queue) {
+function waitMessage(queue, emitter) {
+  if (queue.length) {
+    return Promise.resolve(queue.shift());
+  }
   return new Promise((resolve) => {
-    const interval = setInterval(() => {
-      const msg = queue.shift();
-      if (msg) {
-        clearInterval(interval);
-        resolve(msg);
+    const handler = () => {
+      if (queue.length) {
+        emitter.off("msg", handler);
+        resolve(queue.shift());
       }
-    }, 50);
+    };
+    emitter.on("msg", handler);
   });
 } 

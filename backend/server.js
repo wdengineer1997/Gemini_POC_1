@@ -6,6 +6,7 @@ import { Server as IOServer } from "socket.io";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { generateAudioReply } from "./services/geminiService.js";
+import { seedMockData, getDocumentCount } from "./utils/mockCollection.js";
 
 dotenv.config();
 
@@ -23,6 +24,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const staticPath = join(__dirname, "../frontend/public");
 app.use(express.static(staticPath));
 
+// Seed mock documents on startup (runs once)
+seedMockData();
+
+// REST endpoint to fetch document count from mock collection
+app.get("/api/xyz-count", (_req, res) => {
+  res.json({ count: getDocumentCount() });
+});
+
 if (!process.env.GEMINI_API_KEY) {
   console.error("GEMINI_API_KEY missing in environment variables");
   process.exit(1);
@@ -35,12 +44,16 @@ io.on("connection", (socket) => {
   socket.on("ask", async (data, ack) => {
     const message = data?.message;
     const systemInstruction = typeof data?.systemInstruction === "string" ? data.systemInstruction : "";
+    const doFunctionCall = data?.functionCall === true;
     if (!message || typeof message !== "string") {
       if (typeof ack === "function") ack({ error: "'message' is required" });
       return;
     }
     try {
       const result = await generateAudioReply(message, systemInstruction);
+      if (doFunctionCall) {
+        result.docsCount = getDocumentCount();
+      }
       if (typeof ack === "function") ack(result);
     } catch (err) {
       console.error(err);
