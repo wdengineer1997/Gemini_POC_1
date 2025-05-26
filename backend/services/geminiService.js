@@ -37,7 +37,7 @@ export async function generateAudioReply(text, systemInstruction = "") {
     },
     config: (() => {
       const baseCfg = {
-        responseModalities: [Modality.TEXT, Modality.AUDIO],
+        responseModalities: [Modality.AUDIO],
         mediaResolution: MediaResolution.MEDIA_RESOLUTION_MEDIUM,
         speechConfig: {
           voiceConfig: {
