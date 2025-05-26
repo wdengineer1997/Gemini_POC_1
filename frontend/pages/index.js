@@ -130,7 +130,7 @@ export default function Home() {
 
   return (
     <div className="container">
-      <h2>Gemini Voice Chat</h2>
+      <h2>Gemini POC 1</h2>
       <textarea
         placeholder="Enter optional system instructions (e.g. 'You are a friendly assistant')"
         value={systemInstr}
