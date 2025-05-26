@@ -6,7 +6,7 @@ import { Server as IOServer } from "socket.io";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { generateAudioReply } from "./services/geminiService.js";
-import { seedMockData, getDocumentCount } from "./utils/mockCollection.js";
+import { getCollectionCount } from "./utils/mongoClient.js";
 
 dotenv.config();
 
@@ -24,12 +24,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const staticPath = join(__dirname, "../frontend/public");
 app.use(express.static(staticPath));
 
-// Seed mock documents on startup (runs once)
-seedMockData();
-
-// REST endpoint to fetch document count from mock collection
-app.get("/api/xyz-count", (_req, res) => {
-  res.json({ count: getDocumentCount() });
+// REST endpoint to fetch document count from MongoDB
+app.get("/api/xyz-count", async (_req, res) => {
+  try {
+    const count = await getCollectionCount("xyz");
+    res.json({ count });
+  } catch (err) {
+    console.error("Failed to fetch MongoDB count", err);
+    res.status(500).json({ error: "Failed to fetch document count" });
+  }
 });
 
 if (!process.env.GEMINI_API_KEY) {
@@ -52,7 +55,12 @@ io.on("connection", (socket) => {
     try {
       const result = await generateAudioReply(message, systemInstruction);
       if (doFunctionCall) {
-        result.docsCount = getDocumentCount();
+        try {
+          result.docsCount = await getCollectionCount("xyz");
+        } catch (err) {
+          console.error("Error fetching docs count", err);
+          result.docsCount = -1;
+        }
       }
       if (typeof ack === "function") ack(result);
     } catch (err) {
