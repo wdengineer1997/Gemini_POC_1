@@ -5,7 +5,6 @@ export default function Home() {
   const [messages, setMessages] = useState([]);
   const [systemInstr, setSystemInstr] = useState("");
   const [listening, setListening] = useState(false);
-  const [useFunctionCall, setUseFunctionCall] = useState(false);
   const shouldListenRef = useRef(false);
   const recognitionRef = useRef(null);
   const audioRef = useRef(null);
@@ -44,7 +43,7 @@ export default function Home() {
     return new Promise((resolve, reject) => {
       socketRef.current
         .timeout(20000)
-        .emit("ask", { message: text, systemInstruction: systemInstr, functionCall: useFunctionCall }, (err, response) => {
+        .emit("ask", { message: text, systemInstruction: systemInstr }, (err, response) => {
           if (err) return reject(err);
           resolve(response);
         });
@@ -53,9 +52,6 @@ export default function Home() {
         if (!data) throw new Error("No response from server");
         if (data.error) throw new Error(data.error);
         let assistantText = data.text || "[Audio response]";
-        if (typeof data.docsCount === "number") {
-          assistantText += `\n(Document count: ${data.docsCount})`;
-        }
         appendMessage(assistantText, "assistant");
         if (data.audioBase64) {
           playAudio(data.audioBase64, data.mimeType);
@@ -138,16 +134,6 @@ export default function Home() {
         rows={3}
         style={{ width: "100%", marginBottom: "0.75rem" }}
       />
-      <div style={{ margin: '0.5rem 0' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <input
-            type="checkbox"
-            checked={useFunctionCall}
-            onChange={(e) => setUseFunctionCall(e.target.checked)}
-          />
-          Enable document count function call
-        </label>
-      </div>
       <div className="chat">
         {messages.map((m, idx) => (
           <div key={idx} className={`message ${m.sender}`}>{m.text}</div>
