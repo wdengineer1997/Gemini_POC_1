@@ -10,12 +10,16 @@ import { generateAudioReplyWithDbFunction } from "./services/geminiFunctionServi
 dotenv.config();
 
 const PORT = process.env.PORT || 5000;
+const REQUEST_TIMEOUT = 90000; // 90 seconds timeout for requests
+
 const app = express();
 const httpServer = http.createServer(app);
 const io = new IOServer(httpServer, {
   cors: {
     origin: "*",
   },
+  pingTimeout: 30000,
+  pingInterval: 10000
 });
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
@@ -30,6 +34,9 @@ if (!process.env.GEMINI_API_KEY) {
 
 // REST API endpoint for /ask
 app.post('/ask', async (req, res) => {
+  // Set timeout for the request
+  req.setTimeout(REQUEST_TIMEOUT);
+  
   try {
     const { message, systemInstruction = "" } = req.body;
     
@@ -37,11 +44,27 @@ app.post('/ask', async (req, res) => {
       return res.status(400).json({ error: "'message' is required" });
     }
     
+    console.log(`Processing request with message: "${message}"`);
+    if (systemInstruction) {
+      console.log(`Using system instruction: "${systemInstruction}"`);
+    } else {
+      console.log("No system instruction provided");
+    }
+    
     const result = await generateAudioReplyWithDbFunction(message, systemInstruction);
+    
+    if (result.error) {
+      console.error("Error generating response:", result.error);
+      return res.status(500).json({ 
+        error: result.error,
+        text: result.text || "Failed to generate response"
+      });
+    }
+    
     res.json(result);
   } catch (err) {
     console.error('REST API Error:', err);
-    res.status(500).json({ error: "Failed to generate response" });
+    res.status(500).json({ error: "Failed to generate response: " + err.message });
   }
 });
 
@@ -50,18 +73,50 @@ io.on("connection", (socket) => {
   console.log("Socket client connected", socket.id);
 
   socket.on("ask", async (data, ack) => {
+    const requestStartTime = Date.now();
     const message = data?.message;
     const systemInstruction = typeof data?.systemInstruction === "string" ? data.systemInstruction : "";
+    
     if (!message || typeof message !== "string") {
       if (typeof ack === "function") ack({ error: "'message' is required" });
       return;
     }
+    
+    console.log(`Socket request with message: "${message}"`);
+    if (systemInstruction) {
+      console.log(`Using socket system instruction: "${systemInstruction}"`);
+    } else {
+      console.log("No system instruction provided for socket request");
+    }
+    
     try {
-      const result = await generateAudioReplyWithDbFunction(message, systemInstruction);
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Request timed out after 80 seconds")), 80000);
+      });
+
+      // Race between the actual request and the timeout
+      const result = await Promise.race([
+        generateAudioReplyWithDbFunction(message, systemInstruction),
+        timeoutPromise
+      ]);
+      
+      const processingTime = ((Date.now() - requestStartTime) / 1000).toFixed(2);
+      console.log(`Response generated in ${processingTime}s`);
+      
+      if (result.error) {
+        console.error("Error in socket response:", result.error);
+      }
+      
       if (typeof ack === "function") ack(result);
     } catch (err) {
-      console.error(err);
-      if (typeof ack === "function") ack({ error: "Failed to generate response" });
+      console.error("Socket request error:", err);
+      if (typeof ack === "function") {
+        ack({ 
+          error: "Failed to generate response: " + err.message,
+          text: "Sorry, there was an error processing your request. Please try again."
+        });
+      }
     }
   });
 
@@ -70,6 +125,10 @@ io.on("connection", (socket) => {
   });
 });
 
+// Set server timeout
+httpServer.timeout = REQUEST_TIMEOUT;
+
 httpServer.listen(PORT, () => {
   console.log(`Server (HTTP + WebSocket) listening on port ${PORT}`);
+  console.log(`Request timeout set to ${REQUEST_TIMEOUT/1000} seconds`);
 }); 
