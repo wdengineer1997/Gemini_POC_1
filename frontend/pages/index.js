@@ -4,6 +4,8 @@ import { io } from "socket.io-client";
 export default function Home() {
   const [messages, setMessages] = useState([]);
   const [systemInstr, setSystemInstr] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
   const [listening, setListening] = useState(false);
   const [socketStatus, setSocketStatus] = useState("disconnected");
   const shouldListenRef = useRef(false);
@@ -67,7 +69,11 @@ export default function Home() {
     return new Promise((resolve, reject) => {
       socketRef.current
         .timeout(20000)
-        .emit("ask", { message: text, systemInstruction: systemInstr }, (err, response) => {
+        .emit("ask", { 
+          message: text, 
+          systemInstruction: systemInstr,
+          apiKey: apiKey.trim() // Send API key to backend
+        }, (err, response) => {
           if (err) return reject(err);
           resolve(response);
         });
@@ -191,6 +197,34 @@ export default function Home() {
             onChange={(e) => setSystemInstr(e.target.value)}
             rows={3}
           />
+        </div>
+        
+        {/* API Key Input */}
+        <div className="card">
+          <h3 className="card-header">
+            🔑 Gemini API Key
+          </h3>
+          <div className="api-key-container">
+            <div className="api-key-input-wrapper">
+              <input
+                type={showApiKey ? "text" : "password"}
+                className="api-key-input"
+                placeholder="Enter your Gemini API key (optional)"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+              />
+              <button 
+                className="toggle-visibility-button"
+                onClick={() => setShowApiKey(!showApiKey)}
+                type="button"
+              >
+                {showApiKey ? "🙈" : "👁️"}
+              </button>
+            </div>
+            <p className="api-key-info">
+              {apiKey ? "✅ API key provided" : "⚠️ Using server's API key. You can provide your own for better reliability."}
+            </p>
+          </div>
         </div>
 
         {/* Chat Container */}

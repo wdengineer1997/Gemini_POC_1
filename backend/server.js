@@ -38,7 +38,7 @@ app.post('/ask', async (req, res) => {
   req.setTimeout(REQUEST_TIMEOUT);
   
   try {
-    const { message, systemInstruction = "" } = req.body;
+    const { message, systemInstruction = "", apiKey = "" } = req.body;
     
     if (!message || typeof message !== "string") {
       return res.status(400).json({ error: "'message' is required" });
@@ -51,7 +51,13 @@ app.post('/ask', async (req, res) => {
       console.log("No system instruction provided");
     }
     
-    const result = await generateAudioReplyWithDbFunction(message, systemInstruction);
+    // Use API key from frontend if provided, otherwise use from .env
+    const usedApiKey = apiKey && apiKey.trim() !== "" ? apiKey : process.env.GEMINI_API_KEY;
+    if (!usedApiKey) {
+      return res.status(500).json({ error: "No API key available. Please provide an API key or configure one in the server." });
+    }
+    
+    const result = await generateAudioReplyWithDbFunction(message, systemInstruction, usedApiKey);
     
     if (result.error) {
       console.error("Error generating response:", result.error);
@@ -76,6 +82,7 @@ io.on("connection", (socket) => {
     const requestStartTime = Date.now();
     const message = data?.message;
     const systemInstruction = typeof data?.systemInstruction === "string" ? data.systemInstruction : "";
+    const apiKey = typeof data?.apiKey === "string" ? data.apiKey : "";
     
     if (!message || typeof message !== "string") {
       if (typeof ack === "function") ack({ error: "'message' is required" });
@@ -89,6 +96,13 @@ io.on("connection", (socket) => {
       console.log("No system instruction provided for socket request");
     }
     
+    // Use API key from frontend if provided, otherwise use from .env
+    const usedApiKey = apiKey && apiKey.trim() !== "" ? apiKey : process.env.GEMINI_API_KEY;
+    if (!usedApiKey) {
+      if (typeof ack === "function") ack({ error: "No API key available. Please provide an API key or configure one in the server." });
+      return;
+    }
+    
     try {
       // Create a timeout promise
       const timeoutPromise = new Promise((_, reject) => {
@@ -97,7 +111,7 @@ io.on("connection", (socket) => {
 
       // Race between the actual request and the timeout
       const result = await Promise.race([
-        generateAudioReplyWithDbFunction(message, systemInstruction),
+        generateAudioReplyWithDbFunction(message, systemInstruction, usedApiKey),
         timeoutPromise
       ]);
       

@@ -6,13 +6,15 @@ import { generateAudioReply } from "./geminiService.js";
 dotenv.config();
 
 if (!process.env.GEMINI_API_KEY) {
-  throw new Error("GEMINI_API_KEY missing in environment variables");
+  console.warn("GEMINI_API_KEY not found in environment variables. An API key must be provided from the frontend.");
 }
 
-const ai = new GoogleGenAI({ 
+// Default AI client with env API key
+const defaultAi = process.env.GEMINI_API_KEY ? new GoogleGenAI({ 
   apiKey: process.env.GEMINI_API_KEY,
   timeout: 60000 // Increase timeout to 60 seconds
-});
+}) : null;
+
 const FUNCTION_MODEL_ID = "models/gemini-2.0-flash-001";
 
 // Tool (function declaration) so Gemini can decide to call it
@@ -36,8 +38,20 @@ const mongoCountTool = {
 };
 
 
-export async function generateAudioReplyWithDbFunction(userText, systemInstruction = "") {
+export async function generateAudioReplyWithDbFunction(userText, systemInstruction = "", apiKey = null) {
   try {
+    const ai = apiKey ? new GoogleGenAI({ 
+      apiKey: apiKey,
+      timeout: 60000 
+    }) : defaultAi;
+    
+    if (!ai) {
+      return { 
+        error: "No API key available. Please provide an API key.",
+        text: "API key is required to use Gemini services."
+      };
+    }
+    
     const userTurn = { role: "user", parts: [{ text: userText }] };
     let systemInstructionPayload = null;
 
@@ -73,7 +87,7 @@ export async function generateAudioReplyWithDbFunction(userText, systemInstructi
     const candidate = firstResp.candidates?.[0];
     if (!candidate) {
       console.error("No candidates returned from first API call");
-      return await generateAudioReply("Sorry, I couldn't generate a response.", systemInstruction);
+      return await generateAudioReply("Sorry, I couldn't generate a response.", systemInstruction, apiKey);
     }
 
     function findFuncPart(cand) {
@@ -158,13 +172,13 @@ export async function generateAudioReplyWithDbFunction(userText, systemInstructi
       }
       
       console.log("Generating audio reply with:", finalText.substring(0, 100) + (finalText.length > 100 ? "..." : ""));
-      return await generateAudioReply(finalText, systemInstruction);
+      return await generateAudioReply(finalText, systemInstruction, apiKey);
     } else {
       // Handle case where model didn't use function calling
       console.log("Model did not use function calling, generating direct response");
       const modelGeneratedText = firstPart.text || "I was unable to process your request as expected. Please try rephrasing your question.";
       console.log("Generating audio reply with:", modelGeneratedText.substring(0, 100) + (modelGeneratedText.length > 100 ? "..." : ""));
-      return await generateAudioReply(modelGeneratedText, systemInstruction);
+      return await generateAudioReply(modelGeneratedText, systemInstruction, apiKey);
     }
   } catch (err) {
     console.error("Error in generateAudioReplyWithDbFunction:", err);

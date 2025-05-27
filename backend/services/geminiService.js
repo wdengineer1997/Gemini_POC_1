@@ -6,22 +6,32 @@ import { convertToWav } from "../utils/audio.js";
 dotenv.config();
 
 if (!process.env.GEMINI_API_KEY) {
-  throw new Error("GEMINI_API_KEY missing in environment variables");
+  console.warn("GEMINI_API_KEY not found in environment variables. An API key must be provided from the frontend.");
 }
 
-const ai = new GoogleGenAI({ 
-  apiKey: process.env.GEMINI_API_KEY,
-  timeout: 60000 // Increase timeout to 60 seconds
-});
 const MODEL_ID = "models/gemini-2.0-flash-live-001";
 
-export async function generateAudioReply(text, systemInstruction = "") {
+export async function generateAudioReply(text, systemInstruction = "", apiKey = null) {
   const responseQueue = [];
   const queueEmitter = new EventEmitter();
   const audioParts = [];
   let collectedText = "";
 
   try {
+    // Create the AI client with the provided API key or fall back to env variable
+    const ai = new GoogleGenAI({ 
+      apiKey: apiKey || process.env.GEMINI_API_KEY,
+      timeout: 60000 // Increase timeout to 60 seconds
+    });
+    
+    // Validate API key
+    if (!apiKey && !process.env.GEMINI_API_KEY) {
+      return { 
+        error: "No API key available. Please provide an API key.",
+        text: "API key is required to use Gemini services."
+      };
+    }
+
     const session = await ai.live.connect({
       model: MODEL_ID,
       callbacks: {
