@@ -108,6 +108,20 @@ io.on("connection", (socket) => {
         console.error("Error in socket response:", result.error);
       }
       
+      // Ensure we have text in the response
+      if (result.text) {
+        console.log(`Sending text transcription to client: "${result.text.substring(0, 100)}${result.text.length > 100 ? '...' : ''}"`);
+      } else {
+        console.warn("No text transcription found in response");
+        // Add a default text if none was returned
+        result.text = "Response generated but no transcription available.";
+      }
+      
+      // Add a separate transcription field for clarity
+      if (!result.transcription && result.text) {
+        result.transcription = result.text;
+      }
+      
       if (typeof ack === "function") ack(result);
     } catch (err) {
       console.error("Socket request error:", err);

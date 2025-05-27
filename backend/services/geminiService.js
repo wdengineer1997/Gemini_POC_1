@@ -45,6 +45,7 @@ export async function generateAudioReply(text, systemInstruction = "") {
         const baseCfg = {
           responseModalities: [Modality.AUDIO], // Only use AUDIO modality
           mediaResolution: MediaResolution.MEDIA_RESOLUTION_MEDIUM,
+          outputAudioTranscription: {}, // Add this to get text transcription alongside audio
           speechConfig: {
             voiceConfig: {
               prebuiltVoiceConfig: { voiceName: "Zephyr" },
@@ -79,6 +80,13 @@ export async function generateAudioReply(text, systemInstruction = "") {
           timeoutPromise
         ]);
         
+        // Check for output transcription (this is the text version of the audio)
+        if (message.serverContent?.outputTranscription?.text) {
+          const transcriptionText = message.serverContent.outputTranscription.text;
+          console.log("Received transcription:", transcriptionText);
+          collectedText += transcriptionText;
+        }
+        
         const parts = message.serverContent?.modelTurn?.parts;
         if (parts && parts.length) {
           const part = parts[0];
@@ -86,6 +94,8 @@ export async function generateAudioReply(text, systemInstruction = "") {
             audioParts.push(part.inlineData.data);
           }
           if (part.text) {
+            // This would be redundant with the outputTranscription, but keeping as fallback
+            console.log("Received part text:", part.text);
             collectedText += part.text;
           }
         }
@@ -113,7 +123,16 @@ export async function generateAudioReply(text, systemInstruction = "") {
     // convert to wav buffer
     const wavBuffer = convertToWav(audioParts, "audio/pcm;rate=24000");
     const base64Audio = wavBuffer.toString("base64");
-    return { text: collectedText, audioBase64: base64Audio, mimeType: "audio/wav" };
+    
+    // Ensure text is returned in the response
+    console.log("Final transcribed text:", collectedText);
+    
+    return { 
+      text: collectedText, 
+      audioBase64: base64Audio, 
+      mimeType: "audio/wav",
+      transcription: collectedText // Added explicit transcription field
+    };
   } catch (err) {
     console.error("Error in generateAudioReply:", err);
     return { 
