@@ -16,6 +16,7 @@ export default function Home() {
   const chatContainerRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const audioStreamRef = useRef(null);
 
   const appendMessage = (text, sender, audioData = null, mimeType = null) => {
     setMessages((prev) => [
@@ -188,7 +189,6 @@ export default function Home() {
       return;
     }
 
-    appendMessage("Sending audio message...", "user");
     console.log("[Frontend] Sending audio to backend, length:", audioData.length);
 
     return new Promise((resolve, reject) => {
@@ -297,13 +297,24 @@ export default function Home() {
     recognition.lang = "en-US";
     recognition.interimResults = true;
 
-    recognition.onstart = () => setListening(true);
+    recognition.onstart = () => {
+      setListening(true);
+      // Start recording audio when speech recognition starts
+      startAudioRecording();
+    };
+    
     recognition.onerror = (e) => {
       console.error("Speech recognition error", e);
       setListening(false);
+      // Stop recording audio on error
+      stopAudioRecording();
     };
+    
     recognition.onend = () => {
       setListening(false);
+      // Stop recording audio when speech recognition ends
+      stopAudioRecording();
+      
       if (shouldListenRef.current) {
         recognition.start();
       }
@@ -317,7 +328,13 @@ export default function Home() {
           if (!transcript) continue;
           stopAudio();
           appendMessage(transcript, "user");
-          await sendToBackend(transcript);
+          
+          // Stop the speech recognition to also stop the audio recording
+          // This will trigger the onend event which stops audio recording
+          recognition.stop();
+          
+          // No need to send text to backend as we'll send audio
+          // await sendToBackend(transcript);
         }
       }
     };
@@ -325,11 +342,19 @@ export default function Home() {
     return recognition;
   };
 
-  const startRecording = async () => {
+  // New combined function to start audio recording
+  const startAudioRecording = async () => {
     try {
+      if (audioStreamRef.current) {
+        // Already recording, do nothing
+        return;
+      }
+      
+      console.log("[Frontend] Starting audio recording alongside speech recognition");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream;
+      
       const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -340,8 +365,18 @@ export default function Home() {
       };
 
       mediaRecorder.onstop = async () => {
+        if (audioChunksRef.current.length === 0) {
+          console.log("[Frontend] No audio data collected");
+          return;
+        }
+        
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        console.log("[Frontend] Audio recording complete, size:", audioBlob.size, "bytes");
 
+        if (audioBlob.size < 1000) {
+          console.log("[Frontend] Audio too short, ignoring");
+          return;
+        }
 
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
@@ -350,27 +385,32 @@ export default function Home() {
           await sendAudioToBackend(base64data);
         };
 
-
-        stream.getTracks().forEach(track => track.stop());
-        setRecording(false);
+        // Clean up
+        if (audioStreamRef.current) {
+          audioStreamRef.current.getTracks().forEach(track => track.stop());
+          audioStreamRef.current = null;
+        }
       };
 
       mediaRecorder.start();
       setRecording(true);
     } catch (err) {
-      console.error("Error starting recording:", err);
-      alert("Failed to access microphone. Please ensure microphone permissions are granted.");
+      console.error("[Frontend] Error starting audio recording:", err);
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && recording) {
+  // New combined function to stop audio recording
+  const stopAudioRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      console.log("[Frontend] Stopping audio recording");
       mediaRecorderRef.current.stop();
+      setRecording(false);
     }
   };
 
   const toggleMic = () => {
     if (shouldListenRef.current) {
+      // Stopping
       shouldListenRef.current = false;
       if (recognitionRef.current) {
         recognitionRef.current.onend = null;
@@ -378,7 +418,9 @@ export default function Home() {
         recognitionRef.current = null;
       }
       setListening(false);
+      stopAudioRecording();
     } else {
+      // Starting
       shouldListenRef.current = true;
       if (!recognitionRef.current) {
         recognitionRef.current = initRecognition();
@@ -571,14 +613,6 @@ export default function Home() {
           >
             {listening ? '🛑' : '🎤'}
           </button>
-          <button
-            className={`record-button ${recording ? 'recording' : ''}`}
-            onClick={recording ? stopRecording : startRecording}
-            title={recording ? "Click to stop recording" : "Click to record audio message"}
-            disabled={socketStatus !== "connected"}
-          >
-            {recording ? '⏹️' : '🎙️'}
-          </button>
           <p className="control-text">
             {socketStatus !== "connected"
               ? "⏳ Waiting for server connection..."
@@ -586,7 +620,7 @@ export default function Home() {
                 ? "🔴 Recording audio message..."
                 : shouldListenRef.current
                   ? "🔴 Click to stop listening"
-                  : "🎙️ Choose speech-to-text or direct audio recording"
+                  : "🎙️ Click to start listening (audio will be sent when you pause)"
             }
           </p>
         </div>
