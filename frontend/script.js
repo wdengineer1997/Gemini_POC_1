@@ -1,5 +1,4 @@
 const chatEl = document.getElementById("chat");
-const micBtn = document.getElementById("micBtn");
 const statusIndicator = document.getElementById("status-indicator");
 const statusText = document.getElementById("status-text");
 const listeningIndicator = document.getElementById("listening-indicator");
@@ -30,23 +29,8 @@ function updateConnectionStatus(status) {
   }
 }
 
-function updateListeningState(listening) {
-  if (listening) {
-    listeningIndicator.classList.remove("hidden");
-    micBtn.innerHTML = "🛑";
-    micBtn.classList.remove("mic-inactive");
-    micBtn.classList.add("mic-active");
-    controlText.textContent = "🔴 Click to stop listening";
-  } else {
-    listeningIndicator.classList.add("hidden");
-    micBtn.innerHTML = "🎤";
-    micBtn.classList.remove("mic-active");
-    micBtn.classList.add("mic-inactive");
-    controlText.textContent = "🎙️ Click to start voice conversation";
-  }
-}
 
-function appendMessage(text, sender = "assistant") {
+function appendMessage(text, sender = "assistant", audioData = null, mimeType = null) {
   // Create message container
   const messageContainer = document.createElement("div");
   messageContainer.className = `message-container ${sender}`;
@@ -90,6 +74,12 @@ function appendMessage(text, sender = "assistant") {
   // Add message to chat
   chatEl.appendChild(messageContainer);
   chatEl.scrollTop = chatEl.scrollHeight;
+
+  if (audioData) {
+    // Add audio to the message and play it immediately
+    appendMessage(text, "assistant", audioData, mimeType);
+    playAudio(audioData, mimeType || "audio/wav");
+  }
 }
 
 function playAudio(base64, mimeType) {
@@ -139,24 +129,13 @@ async function sendToBackend(text) {
     updateConnectionStatus("connected");
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    appendMessage(data.text || "[Audio response]", "assistant");
-    if (data.audioBase64) {
-      playAudio(data.audioBase64, data.mimeType || "audio/wav");
-    }
+    appendMessage(data.text || "[Audio response]", "assistant", data.audioData, data.mimeType || "audio/wav");
   } catch (err) {
     console.error(err);
     updateConnectionStatus("disconnected");
     appendMessage("Error: " + err.message, "assistant");
   }
 }
-
-micBtn.addEventListener("click", () => {
-  if (recognizing) {
-    recognition.stop();
-  } else {
-    startRecognition();
-  }
-});
 
 // Initialize status
 updateConnectionStatus("disconnected");

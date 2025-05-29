@@ -31,19 +31,8 @@
         text-align: left;
         color: #222;
       }
-      #micBtn {
-        background: #1a73e8;
-        color: #fff;
-        border: none;
-        padding: 0.8rem 1.2rem;
-        border-radius: 50%;
-        cursor: pointer;
-        font-size: 1.2rem;
-        outline: none;
-      }
-      #micBtn.listening {
-        background: #d93025;
-      }
+ 
+
       #controls {
         display: flex;
         justify-content: center;
@@ -55,9 +44,7 @@
     <h2 style="text-align:center">Gemini POC 1</h2>
     <textarea id="sysInstr" rows="3" placeholder="System instructions (optional)" style="width:100%;max-width:600px;margin:0 auto 0.75rem auto;display:block;"></textarea>
     <div id="chat"></div>
-    <div id="controls">
-      <button id="micBtn" title="Hold to talk">🎤</button>
-    </div>
+
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="script.js"></script>

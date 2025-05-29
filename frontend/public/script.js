@@ -1,5 +1,4 @@
 const chatEl = document.getElementById("chat");
-const micBtn = document.getElementById("micBtn");
 
 let recognizing = false;
 let recognition;
@@ -30,16 +29,13 @@ function startRecognition() {
   recognition.interimResults = false;
   recognition.onstart = () => {
     recognizing = true;
-    micBtn.classList.add("listening");
   };
   recognition.onend = () => {
     recognizing = false;
-    micBtn.classList.remove("listening");
   };
   recognition.onerror = (e) => {
     console.error("Speech recognition error", e);
     recognizing = false;
-    micBtn.classList.remove("listening");
   };
   recognition.onresult = async (event) => {
     const transcript = event.results[0][0].transcript;
@@ -73,10 +69,3 @@ async function sendToBackend(text) {
     });
 }
 
-micBtn.addEventListener("click", () => {
-  if (recognizing) {
-    recognition.stop();
-  } else {
-    startRecognition();
-  }
-}); 
