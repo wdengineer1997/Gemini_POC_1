@@ -1,109 +1,18 @@
 import { useState, useRef, useEffect } from "react";
 import { io } from "socket.io-client";
+import VoiceChat from "../components/VoiceChat";
+import AudioPlayer from "../components/AudioPlayer";
 
 export default function Home() {
-  const [messages, setMessages] = useState([]);
   const [systemInstr, setSystemInstr] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
-  const [listening, setListening] = useState(false);
-  const [recording, setRecording] = useState(false);
   const [socketStatus, setSocketStatus] = useState("disconnected");
-  const shouldListenRef = useRef(false);
-  const recognitionRef = useRef(null);
-  const audioRef = useRef(null);
   const socketRef = useRef(null);
   const chatContainerRef = useRef(null);
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
-  const audioStreamRef = useRef(null);
+  const [messages, setMessages] = useState([]);
 
-  const appendMessage = (text, sender, audioData = null, mimeType = null) => {
-    setMessages((prev) => [
-      ...prev,
-      {
-        sender,
-        text,
-        timestamp: new Date(),
-        audioData,
-        mimeType
-      }
-    ]);
-  };
-
-  const stopAudio = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      audioRef.current = null;
-    }
-  };
-
-  const playAudio = (base64, mimeType = "audio/wav") => {
-    if (!base64) {
-      console.error("[Frontend] playAudio: No audio data provided");
-      return;
-    }
-    
-    try {
-      console.log("[Frontend] playAudio: Attempting to play audio. MimeType:", mimeType, 
-        "Base64 length:", base64.length, 
-        "First 30 chars:", base64.substring(0, 30), 
-        "Last 30 chars:", base64.substring(base64.length - 30));
-      
-      // Validate the base64 data format
-      if (!/^[A-Za-z0-9+/=]+$/.test(base64)) {
-        console.error("[Frontend] playAudio: Invalid base64 data - contains non-base64 characters");
-        return;
-      }
-      
-      stopAudio(); // Ensure any existing audio is stopped
-      
-      // Create new Audio element
-      const audio = new Audio();
-      
-      // Add event listeners for debugging
-      audio.addEventListener('error', (e) => {
-        console.error("[Frontend] Audio playback error:", e.target.error);
-      });
-      
-      audio.addEventListener('canplaythrough', () => {
-        console.log("[Frontend] Audio can play through");
-      });
-      
-      audio.addEventListener('loadeddata', () => {
-        console.log("[Frontend] Audio data loaded successfully");
-      });
-      
-      // Set source after adding listeners
-      audio.src = `data:${mimeType || 'audio/wav'};base64,${base64}`;
-      audioRef.current = audio;
-      
-      // Play with proper error handling
-      console.log("[Frontend] Attempting to play audio now");
-      audio.play()
-        .then(() => console.log("[Frontend] Audio playback started successfully"))
-        .catch(e => {
-          console.error("[Frontend] playAudio: Error playing audio:", e);
-          
-          // Try fallback to WAV if original type fails and it's not already WAV
-          if (mimeType !== "audio/wav") {
-            console.log("[Frontend] Trying fallback to audio/wav");
-            playAudio(base64, "audio/wav");
-          }
-        });
-    } catch (e) {
-      console.error("[Frontend] Exception in playAudio:", e);
-    }
-  };
-
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
-  }, [messages]);
-
+  // Connect to socket on component mount
   useEffect(() => {
     if (typeof window === "undefined") return; // SSR guard
 
@@ -112,14 +21,17 @@ export default function Home() {
     socketRef.current = socket;
 
     socket.on("connect", () => {
+      console.log("[Frontend] Socket connected");
       setSocketStatus("connected");
     });
 
     socket.on("disconnect", () => {
+      console.log("[Frontend] Socket disconnected");
       setSocketStatus("disconnected");
     });
 
-    socket.on("connect_error", () => {
+    socket.on("connect_error", (err) => {
+      console.error("[Frontend] Socket connection error:", err);
       setSocketStatus("disconnected");
     });
 
@@ -128,368 +40,41 @@ export default function Home() {
     };
   }, []);
 
-  const sendToBackend = async (text) => {
-    if (!socketRef.current) return;
-    return new Promise((resolve, reject) => {
-      socketRef.current
-        .timeout(20000)
-        .emit("ask", {
-          message: text,
-          systemInstruction: systemInstr,
-          apiKey: apiKey.trim() // Send API key to backend
-        }, (err, response) => {
-          console.log("[Frontend] Text request socket response received:", response ? "Response received" : "No response");
-          
-          if (err) {
-            console.error("[Frontend] Socket error:", err);
-            return reject(err);
-          }
-          
-          if (!response) {
-            console.error("[Frontend] Null/undefined response from server");
-            return reject(new Error("No response from server"));
-          }
-          
-          // Always resolve with the response, even if it contains an error
-          resolve(response);
-        });
-    })
-      .then((data) => {
-        console.log("[Frontend] Text response data:", {
-          hasError: !!data.error,
-          hasText: !!data.text,
-          hasAudioData: !!data.audioData
-        });
-        
-        if (data.error) {
-          console.error("[Frontend] Error in response:", data.error);
-          appendMessage(`Error: ${data.error}`, "assistant");
-          return;
-        }
-        
-        let assistantText = data.text || "[Audio response]";
-
-        console.log("[Frontend] sendToBackend: Received response with audioData. Calling playAudio.");
-        appendMessage(assistantText, "assistant", data.audioData, data.mimeType);
-        
-        if (data.audioData) {
-          playAudio(data.audioData, data.mimeType || "audio/wav");
-        }
-      })
-      .catch((err) => {
-        console.error(err);
-        appendMessage("Error: " + err.message, "assistant");
-      });
-  };
-
-  const sendAudioToBackend = async (audioData) => {
-    if (!socketRef.current) {
-      console.error("[Frontend] Socket not connected");
-      appendMessage("Error: Socket not connected", "assistant");
-      return;
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
+  }, [messages]);
 
-    console.log("[Frontend] Sending audio to backend, length:", audioData.length);
-
-    return new Promise((resolve, reject) => {
-      // Set a timeout for the socket request
-      const timeoutId = setTimeout(() => {
-        console.error("[Frontend] Socket request timed out after 90 seconds");
-        reject(new Error("Request timed out after 90 seconds"));
-      }, 90000);
-      
-      socketRef.current.emit("audioInput", {
-        audioData,
-        systemInstruction: systemInstr,
-        apiKey: apiKey.trim(),
-        mimeType: "audio/webm"
-      }, (response) => {
-        // Clear the timeout as we got a response
-        clearTimeout(timeoutId);
-        
-        // Add debug logging for socket response
-        console.log("[Frontend] Socket response received:", {
-          hasResponse: !!response,
-          hasError: response && !!response.error,
-          errorMessage: response && response.error,
-          hasText: response && !!response.text,
-          textLength: response && response.text ? response.text.length : 0,
-          hasAudioData: response && !!response.audioData,
-          audioDataLength: response && response.audioData ? response.audioData.length : 0,
-          mimeType: response && response.mimeType
-        });
-        
-        // Check for undefined or null response
-        if (!response) {
-          console.error("[Frontend] Socket callback received null/undefined response");
-          reject(new Error("No response from server"));
-          return;
-        }
-        
-        // Always resolve with the response, even if it contains an error
-        resolve(response);
-      });
-    })
-      .then((data) => {
-        setMessages(prev => {
-          const newMessages = [...prev];
-          if (newMessages.length > 0) {
-            newMessages[newMessages.length - 1].text = "🎤 Audio message sent";
-          }
-          return newMessages;
-        });
-
-        // Now handle any errors from the response
-        if (data.error) {
-          console.error("[Frontend] Error in socket response:", data.error);
-          appendMessage(`Error: ${data.error}`, "assistant");
-          return; // Don't try to play audio if there's an error
-        }
-
-        let assistantText = data.text || "[Audio response]";
-
-        if (data.audioData) {
-          try {
-            // Validate the audio data is proper base64 before trying to play it
-            if (!/^[A-Za-z0-9+/=]+$/.test(data.audioData)) {
-              console.error("[Frontend] Received invalid base64 audio data");
-              appendMessage(assistantText + " (Audio playback failed - invalid data)", "assistant");
-              return;
-            }
-            
-            // Log detailed information about the received audio response
-            console.log("[Frontend] sendAudioToBackend: Received valid audio data.", {
-              mimeType: data.mimeType || "audio/wav",
-              audioDataLength: data.audioData.length,
-              textResponse: assistantText
-            });
-            
-            // Add audio to the message and play it immediately
-            // Ensure we explicitly set the correct MIME type
-            const responseMimeType = data.mimeType || "audio/wav";
-            appendMessage(assistantText, "assistant", data.audioData, responseMimeType);
-            
-            // Try to play the audio with proper MIME type
-            console.log("[Frontend] Playing response audio with MIME type:", responseMimeType);
-            playAudio(data.audioData, responseMimeType);
-          } catch (e) {
-            console.error("[Frontend] Error processing audio data:", e);
-            appendMessage(assistantText + " (Audio playback failed)", "assistant");
-          }
-        } else {
-          appendMessage(assistantText, "assistant");
-        }
-      })
-      .catch((err) => {
-        console.error("[Frontend] Audio processing error:", err);
-        appendMessage("Error: " + err.message, "assistant");
-      });
-  };
-
-  const initRecognition = () => {
-    const SpeechRecognition = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
-    if (!SpeechRecognition) {
-      alert("Speech Recognition not supported in this browser.");
-      return null;
-    }
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.lang = "en-US";
-    recognition.interimResults = true;
-
-    recognition.onstart = () => {
-      setListening(true);
-      // Start recording audio when speech recognition starts
-      startAudioRecording();
-    };
-    
-    recognition.onerror = (e) => {
-      console.error("Speech recognition error", e);
-      setListening(false);
-      // Stop recording audio on error
-      stopAudioRecording();
-    };
-    
-    recognition.onend = () => {
-      setListening(false);
-      // Stop recording audio when speech recognition ends
-      stopAudioRecording();
-      
-      if (shouldListenRef.current) {
-        recognition.start();
-      }
-    };
-
-    recognition.onresult = async (event) => {
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (result.isFinal) {
-          const transcript = result[0].transcript.trim();
-          if (!transcript) continue;
-          stopAudio();
-          appendMessage(transcript, "user");
-          
-          // Stop the speech recognition to also stop the audio recording
-          // This will trigger the onend event which stops audio recording
-          recognition.stop();
-          
-          // No need to send text to backend as we'll send audio
-          // await sendToBackend(transcript);
-        }
-      }
-    };
-
-    return recognition;
-  };
-
-  // New combined function to start audio recording
-  const startAudioRecording = async () => {
-    try {
-      if (audioStreamRef.current) {
-        // Already recording, do nothing
-        return;
-      }
-      
-      console.log("[Frontend] Starting audio recording alongside speech recognition");
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioStreamRef.current = stream;
-      
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        if (audioChunksRef.current.length === 0) {
-          console.log("[Frontend] No audio data collected");
-          return;
-        }
-        
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        console.log("[Frontend] Audio recording complete, size:", audioBlob.size, "bytes");
-
-        if (audioBlob.size < 1000) {
-          console.log("[Frontend] Audio too short, ignoring");
-          return;
-        }
-
-        const reader = new FileReader();
-        reader.readAsDataURL(audioBlob);
-        reader.onloadend = async () => {
-          const base64data = reader.result.split(',')[1]; // Remove data URL prefix
-          await sendAudioToBackend(base64data);
-        };
-
-        // Clean up
-        if (audioStreamRef.current) {
-          audioStreamRef.current.getTracks().forEach(track => track.stop());
-          audioStreamRef.current = null;
-        }
-      };
-
-      mediaRecorder.start();
-      setRecording(true);
-    } catch (err) {
-      console.error("[Frontend] Error starting audio recording:", err);
-    }
-  };
-
-  // New combined function to stop audio recording
-  const stopAudioRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-      console.log("[Frontend] Stopping audio recording");
-      mediaRecorderRef.current.stop();
-      setRecording(false);
-    }
-  };
-
-  const toggleMic = () => {
-    if (shouldListenRef.current) {
-      // Stopping
-      shouldListenRef.current = false;
-      if (recognitionRef.current) {
-        recognitionRef.current.onend = null;
-        recognitionRef.current.abort();
-        recognitionRef.current = null;
-      }
-      setListening(false);
-      stopAudioRecording();
-    } else {
-      // Starting
-      shouldListenRef.current = true;
-      if (!recognitionRef.current) {
-        recognitionRef.current = initRecognition();
-      }
-      recognitionRef.current?.start();
-    }
-  };
-
-  const getStatusClass = () => {
-    switch (socketStatus) {
-      case "connected": return "status-connected";
-      case "connecting": return "status-connecting";
-      default: return "status-disconnected";
-    }
-  };
-
+  // Format timestamp for messages
   const formatTime = (date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Create audio player for messages
-  const AudioPlayer = ({ audioData, mimeType }) => {
-    if (!audioData) return null;
-    
-    // Always ensure we have a valid MIME type with fallback
-    const useMimeType = mimeType || 'audio/wav';
-    
-    // Log more details about the audio data
-    console.log("[Frontend] AudioPlayer: Creating player with MIME type:", useMimeType, 
-      "Audio data length:", audioData.length);
-    
-    // Create the data URL
-    const audioUrl = `data:${useMimeType};base64,${audioData}`;
-    
-    // Use useEffect to add error handling to the audio element after it's rendered
-    const audioRef = useRef(null);
-    
-    useEffect(() => {
-      const audioElement = audioRef.current;
-      if (audioElement) {
-        audioElement.onerror = (e) => {
-          console.error("[Frontend] AudioPlayer error:", e);
+  // Handle new message
+  const handleNewMessage = (text, sender, audioData = null, mimeType = null, isUpdate = false) => {
+    setMessages((prev) => {
+      // If this is an update to the last message from the same sender
+      if (isUpdate && prev.length > 0 && prev[prev.length - 1].sender === sender) {
+        const newMessages = [...prev];
+        newMessages[newMessages.length - 1] = {
+          ...newMessages[newMessages.length - 1],
+          text,
+          ...(audioData && { audioData, mimeType })
         };
+        return newMessages;
       }
-    }, []);
-
-    return (
-      <div className="audio-player-container">
-        <audio
-          ref={audioRef}
-          controls
-          src={audioUrl}
-          className="message-audio-player"
-          onLoadedData={() => console.log("[Frontend] Audio element loaded data successfully")}
-          onCanPlay={() => console.log("[Frontend] Audio element can play")}
-          autoPlay
-          onError={(e) => {
-            console.error("[Frontend] Audio element error:", e);
-            // If error occurs and the MIME type isn't already WAV, try fallback
-            if (useMimeType !== "audio/wav") {
-              console.log("[Frontend] Audio element trying fallback to audio/wav");
-              e.target.src = `data:audio/wav;base64,${audioData}`;
-              e.target.load();
-              e.target.play().catch(err => console.error("[Frontend] Fallback audio play error:", err));
-            }
-          }}
-        />
-      </div>
-    );
+      
+      // Otherwise add as a new message
+      return [...prev, {
+        sender,
+        text,
+        timestamp: new Date(),
+        audioData,
+        mimeType
+      }];
+    });
   };
 
   return (
@@ -501,22 +86,16 @@ export default function Home() {
             🤖 Gemini Voice Chat
           </h1>
           <div className="status-container">
-            <div className={`status-indicator ${getStatusClass()}`}>
+            <div className={`status-indicator ${
+              socketStatus === "connected" ? "status-connected" : 
+              socketStatus === "connecting" ? "status-connecting" : 
+              "status-disconnected"
+            }`}>
               <div className="status-dot"></div>
               {socketStatus === "connected" && "Connected"}
               {socketStatus === "connecting" && "Connecting..."}
               {socketStatus === "disconnected" && "Disconnected"}
             </div>
-            {listening && (
-              <div className="status-indicator listening-indicator">
-                🎤 Listening...
-              </div>
-            )}
-            {recording && (
-              <div className="status-indicator recording-indicator">
-                🔴 Recording...
-              </div>
-            )}
           </div>
         </div>
 
@@ -587,10 +166,12 @@ export default function Home() {
                     <div className="message-content">
                       <p className="message-text">{message.text}</p>
                       {message.audioData && message.sender === 'assistant' && (
-                        <AudioPlayer
-                          audioData={message.audioData}
-                          mimeType={message.mimeType}
-                        />
+                        <div className="audio-player-container">
+                          <AudioPlayer 
+                            audioData={message.audioData}
+                            mimeType={message.mimeType || 'audio/wav'}
+                          />
+                        </div>
                       )}
                       <p className="message-time">
                         {formatTime(message.timestamp)}
@@ -603,27 +184,14 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Controls */}
-        <div className="controls-container">
-          <button
-            className={`mic-button ${shouldListenRef.current ? 'mic-active' : 'mic-inactive'}`}
-            onClick={toggleMic}
-            title={shouldListenRef.current ? "Click to stop listening" : "Click to start listening"}
-            disabled={socketStatus !== "connected"}
-          >
-            {listening ? '🛑' : '🎤'}
-          </button>
-          <p className="control-text">
-            {socketStatus !== "connected"
-              ? "⏳ Waiting for server connection..."
-              : recording
-                ? "🔴 Recording audio message..."
-                : shouldListenRef.current
-                  ? "🔴 Click to stop listening"
-                  : "🎙️ Click to start listening (audio will be sent when you pause)"
-            }
-          </p>
-        </div>
+        {/* Audio Chat Controls */}
+        <VoiceChat 
+          socket={socketRef}
+          socketStatus={socketStatus}
+          systemInstructions={systemInstr}
+          apiKey={apiKey}
+          onNewMessage={handleNewMessage}
+        />
 
         {/* Features */}
         <div className="features-grid">
