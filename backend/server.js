@@ -13,7 +13,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new IOServer(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: "*",
     methods: ["GET", "POST"]
   }
 });
@@ -21,7 +21,8 @@ const io = new IOServer(server, {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-app.use(cors());
+app.use(cors({ origin: "*" }));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(join(__dirname, 'public')));
 
