@@ -49,7 +49,7 @@ This is an updated version of the Gemini voice chat application that implements 
    ```
 5. Create a `.env` file in the frontend directory with:
    ```
-   NEXT_PUBLIC_API_WS=http://localhost:5000
+   NEXT_PUBLIC_API_WS= https://gemini-poc-1.onrender.com
    ```
 
 ## Running the Application

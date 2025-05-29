@@ -105,9 +105,8 @@ export default function Home() {
 
   useEffect(() => {
     if (typeof window === "undefined") return; // SSR guard
-
     setSocketStatus("connecting");
-    const socket = io(process.env.NEXT_PUBLIC_API_WS || "http://localhost:5000");
+    const socket = io("https://gemini-poc-1.onrender.com");
     socketRef.current = socket;
 
     socket.on("connect", () => {
@@ -563,14 +562,6 @@ export default function Home() {
 
         {/* Controls */}
         <div className="controls-container">
-          <button
-            className={`mic-button ${shouldListenRef.current ? 'mic-active' : 'mic-inactive'}`}
-            onClick={toggleMic}
-            title={shouldListenRef.current ? "Click to stop listening" : "Click to start listening"}
-            disabled={socketStatus !== "connected"}
-          >
-            {listening ? '🛑' : '🎤'}
-          </button>
           <button
             className={`record-button ${recording ? 'recording' : ''}`}
             onClick={recording ? stopRecording : startRecording}

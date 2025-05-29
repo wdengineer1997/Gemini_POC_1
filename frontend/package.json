@@ -3,10 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "dev": "next dev",
     "build": "next build",
-    "start": "node server.js",
-    "dev": "nodemon server.js",
-    "build-css": "tailwindcss -i ./styles/globals.css -o ./public/output.css --watch"
+    "start": "next start"
   },
   "dependencies": {
     "next": "14.2.3",
