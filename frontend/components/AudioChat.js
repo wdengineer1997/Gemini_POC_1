@@ -344,7 +344,7 @@ export default function AudioChat({
                 ? "🎤 Listening to your voice..."
                 : micActive
                   ? "🎤 Waiting for you to speak..."
-                  : "🎙️ Click the microphone to start"
+                  : "📞 Click the microphone to start"
         }
       </p>
     </div>

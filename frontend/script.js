@@ -35,10 +35,10 @@ function updateConnectionStatus(status) {
 function updateListeningState(isListening) {
   if (isListening) {
     listeningIndicator.classList.remove("hidden");
-    controlText.textContent = "🎙️ Listening... Click to stop";
+    controlText.textContent = "📞 Listening... Click to stop";
   } else {
     listeningIndicator.classList.add("hidden");
-    controlText.textContent = "🎙️ Click to start voice conversation";
+    controlText.textContent = "📞 Click to start voice conversation";
   }
 }
 

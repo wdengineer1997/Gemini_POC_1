@@ -525,31 +525,153 @@ export default function VoiceChat({
     });
   };
 
-  // Render UI
+  // Render UI with video call styling
   return (
-    <div className="controls-container">
-      <button
-        className={`mic-button ${micActive ? 'mic-active' : 'mic-inactive'}`}
-        onClick={toggleMicrophone}
-        disabled={socketStatus !== "connected" || processing}
-        title={micActive ? "Click to stop listening" : "Click to start listening"}
-      >
-        {listening ? '🎤' : recording ? '📀' : processing ? '⏳' : '🎙️'}
-      </button>
-      <p className="control-text">
-        {socketStatus !== "connected"
-          ? "⏳ Waiting for server connection..."
-          : processing
-            ? "⏳ Processing your message..."
-            : recording && !listening
-              ? "📀 Recording your message..."
-              : listening
-                ? "🎤 Listening to your voice..."
-                : micActive
-                  ? "🎙️ Ready for your voice..."
-                  : "🎙️ Click the microphone to start"
+    <div className="video-call-controls-wrapper">
+      <div className="call-status-indicator">
+        {socketStatus !== "connected" ? (
+          <span className="status-badge connecting">Connecting...</span>
+        ) : processing ? (
+          <span className="status-badge processing">Processing...</span>
+        ) : recording && !listening ? (
+          <span className="status-badge recording">Recording...</span>
+        ) : listening ? (
+          <span className="status-badge listening">Listening...</span>
+        ) : micActive ? (
+          <span className="status-badge ready">Ready</span>
+        ) : (
+          <span className="status-badge idle">Call Ready</span>
+        )}
+      </div>
+      
+      <div className="video-call-actions">
+        <button
+          className={`video-call-button mic-button ${micActive ? 'active' : ''}`}
+          onClick={toggleMicrophone}
+          disabled={socketStatus !== "connected" || processing}
+          title={micActive ? "End call" : "Start call"}
+        >
+          {micActive ? (
+            <span className="button-icon">📞</span>
+          ) : (
+            <span className="button-icon">📞</span>
+          )}
+        </button>
+        
+        {micActive && (
+          <button
+            className="video-call-button mute-button"
+            onClick={stopMicrophone}
+            title="Mute microphone"
+          >
+            <span className="button-icon">🔇</span>
+          </button>
+        )}
+      </div>
+      
+      <style jsx>{`
+        .video-call-controls-wrapper {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          margin: 20px 0;
         }
-      </p>
+        
+        .call-status-indicator {
+          margin-bottom: 15px;
+        }
+        
+        .status-badge {
+          padding: 6px 12px;
+          border-radius: 16px;
+          font-size: 14px;
+          font-weight: 500;
+          color: white;
+        }
+        
+        .connecting {
+          background: #007aff;
+        }
+        
+        .processing {
+          background: #ff9500;
+        }
+        
+        .recording {
+          background: #ff3b30;
+          animation: pulse 1.5s infinite;
+        }
+        
+        .listening {
+          background: #34c759;
+          animation: pulse 1.5s infinite;
+        }
+        
+        .ready {
+          background: #5856d6;
+        }
+        
+        .idle {
+          background: #8e8e93;
+        }
+        
+        .video-call-actions {
+          display: flex;
+          gap: 16px;
+        }
+        
+        .video-call-button {
+          width: 60px;
+          height: 60px;
+          border-radius: 50%;
+          border: none;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          background: #444;
+          color: white;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .video-call-button:hover {
+          transform: scale(1.05);
+        }
+        
+        .video-call-button:active {
+          transform: scale(0.95);
+        }
+        
+        .video-call-button:disabled {
+          background: #555;
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        
+        .mic-button {
+          background: ${micActive ? '#ff3b30' : '#34c759'};
+          transform: ${micActive ? 'rotate(135deg)' : 'rotate(0)'};
+        }
+        
+        .mic-button.active {
+          background: #ff3b30;
+        }
+        
+        .mute-button {
+          background: #007aff;
+        }
+        
+        .button-icon {
+          font-size: 24px;
+        }
+        
+        @keyframes pulse {
+          0% { opacity: 1; }
+          50% { opacity: 0.8; }
+          100% { opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 } 

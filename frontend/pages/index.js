@@ -207,148 +207,351 @@ export default function Home() {
       <Head>
         <title>Gemini Voice Chat</title>
         <meta name="description" content="Gemini Voice Chat with 3D Avatar" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
       </Head>
       
-      <main>
-        <div className="main-container">
-          <div className="content-wrapper">
-            {/* Header */}
-            <div className="header">
-              <h1 className="main-title">
-                🤖 Gemini Voice Chat
-              </h1>
-              <div className="status-container">
-                <div className={`status-indicator ${
-                  socketStatus === "connected" ? "status-connected" : 
-                  socketStatus === "connecting" ? "status-connecting" : 
-                  "status-disconnected"
-                }`}>
-                  <div className="status-dot"></div>
-                  {socketStatus === "connected" && "Connected"}
-                  {socketStatus === "connecting" && "Connecting..."}
-                  {socketStatus === "disconnected" && "Disconnected"}
-                </div>
-              </div>
-            </div>
+      <main className="video-chat-app">
+        <div className="app-container">
+          <div className="app-header">
+            <h1 className="app-title">
+              <span className="app-logo">🤖</span> Gemini Video Call
+              <span className={`connection-badge ${socketStatus}`}>
+                {socketStatus === "connected" ? "Online" : 
+                 socketStatus === "connecting" ? "Connecting..." : 
+                 "Offline"}
+              </span>
+            </h1>
+          </div>
 
-            {/* System Instructions */}
-            <div className="card">
-              <h3 className="card-header">
-                ⚙️ System Instructions
-              </h3>
-              <textarea
-                className="system-textarea"
-                placeholder="Enter optional system instructions (e.g. 'You are a friendly assistant who speaks like a pirate')"
-                value={systemInstr}
-                onChange={(e) => setSystemInstr(e.target.value)}
-                rows={3}
+          <div className="video-chat-layout">
+            <div className="video-chat-main">
+              {/* 3D Talking Head Component */}
+              <TalkingHead />
+              
+              {/* Voice Controls */}
+              <VoiceChat
+                socket={socketRef}
+                socketStatus={socketStatus}
+                systemInstructions={systemInstr}
+                apiKey={apiKey}
+                onNewMessage={handleNewMessage}
               />
             </div>
+            
+            <div className="video-chat-sidebar">
+              {/* System Instructions Panel */}
+              <div className="sidebar-panel">
+                <h3 className="panel-header">
+                  <span className="panel-icon">⚙️</span> System Instructions
+                </h3>
+                <textarea
+                  className="system-textarea"
+                  placeholder="Enter optional system instructions (e.g. 'You are a friendly assistant who speaks like a pirate')"
+                  value={systemInstr}
+                  onChange={(e) => setSystemInstr(e.target.value)}
+                  rows={3}
+                />
+              </div>
 
-            {/* API Key Input */}
-            <div className="card">
-              <h3 className="card-header">
-                🔑 Gemini API Key
-              </h3>
-              <div className="api-key-container">
-                <div className="api-key-input-wrapper">
+              {/* API Key Panel */}
+              <div className="sidebar-panel">
+                <h3 className="panel-header">
+                  <span className="panel-icon">🔑</span> API Key
+                </h3>
+                <div className="api-key-input-group">
                   <input
                     type={showApiKey ? "text" : "password"}
                     className="api-key-input"
-                    placeholder="Enter your Gemini API key (optional)"
+                    placeholder="Enter your Gemini API key"
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                   />
-                  <button
+                  <button 
                     className="toggle-visibility-button"
                     onClick={() => setShowApiKey(!showApiKey)}
-                    type="button"
                   >
                     {showApiKey ? "🙈" : "👁️"}
                   </button>
                 </div>
-                <p className="api-key-info">
-                  {apiKey ? "✅ API key provided" : "⚠️ Using server's API key. You can provide your own for better reliability."}
-                </p>
               </div>
-            </div>
-
-            {/* Chat Container */}
-            <div className="chat-container">
-              <div className="chat-header">
-                💬 Conversation
-              </div>
-              <div
-                ref={chatContainerRef}
-                className="chat-messages"
-              >
-                {messages.length === 0 ? (
-                  <div className="empty-state">
-                    <div className="empty-icon">🗣️</div>
-                    <p className="empty-title">Start a conversation by clicking the microphone</p>
-                    <p className="empty-subtitle">Your voice will be converted to text and sent to Gemini</p>
-                  </div>
-                ) : (
-                  messages.map((message, idx) => (
-                    <div key={idx} className={`message-container ${message.sender}`}>
-                      <div className={`message-bubble ${message.sender === 'user' ? 'user-message' : 'assistant-message'}`}>
-                        <div className="message-avatar">
-                          {message.sender === 'user' ? '👤' : '🤖'}
-                        </div>
+              
+              {/* Conversation History */}
+              <div className="sidebar-panel conversation-panel">
+                <h3 className="panel-header">
+                  <span className="panel-icon">💬</span> Conversation
+                </h3>
+                <div className="messages-container" ref={chatContainerRef}>
+                  {messages.length === 0 ? (
+                    <div className="empty-state">
+                      <p>Start a conversation by clicking the call button</p>
+                    </div>
+                  ) : (
+                    messages.map((message, index) => (
+                      <div 
+                        key={index} 
+                        className={`message ${message.sender}`}
+                      >
                         <div className="message-content">
-                          <p className="message-text">{message.text}</p>
-                          {message.audioData && message.sender === 'assistant' && (
-                            <div className="audio-player-container">
-                              <AudioPlayer 
-                                audioData={message.audioData}
-                                mimeType={message.mimeType || 'audio/wav'}
-                              />
-                            </div>
+                          <div className="message-header">
+                            <span className="message-sender">
+                              {message.sender === "user" ? "You" : "Gemini"}
+                            </span>
+                            <span className="message-time">
+                              {formatTime(message.timestamp)}
+                            </span>
+                          </div>
+                          <div className="message-text">{message.text}</div>
+                          {message.audioData && (
+                            <AudioPlayer 
+                              audioData={message.audioData} 
+                              mimeType={message.mimeType} 
+                            />
                           )}
-                          <p className="message-time">
-                            {formatTime(message.timestamp)}
-                          </p>
                         </div>
                       </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* 3D TalkingHead Component */}
-            <TalkingHead />
-
-            {/* Audio Chat Controls */}
-            <VoiceChat 
-              socket={socketRef}
-              socketStatus={socketStatus}
-              systemInstructions={systemInstr}
-              apiKey={apiKey}
-              onNewMessage={handleNewMessage}
-            />
-
-            {/* Features */}
-            <div className="features-grid">
-              <div className="feature-card">
-                <div className="feature-icon">🎙️</div>
-                <h4 className="feature-title">Voice Input</h4>
-                <p className="feature-description">Speak naturally and your voice will be converted to text using advanced speech recognition</p>
-              </div>
-              <div className="feature-card">
-                <div className="feature-icon">🧠</div>
-                <h4 className="feature-title">AI Processing</h4>
-                <p className="feature-description">Powered by Google's Gemini AI for intelligent, contextual responses</p>
-              </div>
-              <div className="feature-card">
-                <div className="feature-icon">🔊</div>
-                <h4 className="feature-title">Audio Output</h4>
-                <p className="feature-description">Get natural-sounding audio responses that you can hear clearly</p>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </div>
       </main>
+
+      <style jsx global>{`
+        * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+        }
+        
+        body {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+          background-color: #f0f2f5;
+          color: #333;
+        }
+        
+        .video-chat-app {
+          min-height: 100vh;
+          padding: 20px;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        }
+        
+        .app-container {
+          width: 100%;
+          max-width: 1200px;
+          background: white;
+          border-radius: 16px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+          overflow: hidden;
+        }
+        
+        .app-header {
+          padding: 16px 24px;
+          background: #1e1e1e;
+          color: white;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 1px solid #333;
+        }
+        
+        .app-title {
+          font-size: 20px;
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        
+        .app-logo {
+          font-size: 24px;
+        }
+        
+        .connection-badge {
+          font-size: 12px;
+          padding: 4px 8px;
+          border-radius: 12px;
+          margin-left: 12px;
+        }
+        
+        .connection-badge.connected {
+          background: #34c759;
+        }
+        
+        .connection-badge.connecting {
+          background: #ff9500;
+        }
+        
+        .connection-badge.disconnected {
+          background: #ff3b30;
+        }
+        
+        .video-chat-layout {
+          display: flex;
+          min-height: 80vh;
+        }
+        
+        .video-chat-main {
+          flex: 1;
+          padding: 20px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          background: #f9f9f9;
+        }
+        
+        .video-chat-sidebar {
+          width: 340px;
+          padding: 20px;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          background: white;
+          border-left: 1px solid #eaeaea;
+          overflow-y: auto;
+        }
+        
+        .sidebar-panel {
+          background: #f9f9f9;
+          border-radius: 12px;
+          padding: 16px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        .panel-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 16px;
+          font-weight: 600;
+          margin-bottom: 12px;
+          color: #333;
+        }
+        
+        .panel-icon {
+          font-size: 18px;
+        }
+        
+        .system-textarea {
+          width: 100%;
+          padding: 12px;
+          border-radius: 8px;
+          border: 1px solid #ddd;
+          font-family: inherit;
+          resize: none;
+          font-size: 14px;
+        }
+        
+        .system-textarea:focus {
+          outline: none;
+          border-color: #007aff;
+        }
+        
+        .api-key-input-group {
+          display: flex;
+          gap: 8px;
+        }
+        
+        .api-key-input {
+          flex: 1;
+          padding: 12px;
+          border-radius: 8px;
+          border: 1px solid #ddd;
+          font-family: inherit;
+        }
+        
+        .api-key-input:focus {
+          outline: none;
+          border-color: #007aff;
+        }
+        
+        .toggle-visibility-button {
+          width: 40px;
+          background: #f0f0f0;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          cursor: pointer;
+        }
+        
+        .toggle-visibility-button:hover {
+          background: #e5e5e5;
+        }
+        
+        .conversation-panel {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          max-height: 400px;
+        }
+        
+        .messages-container {
+          flex: 1;
+          overflow-y: auto;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          padding-right: 4px;
+        }
+        
+        .empty-state {
+          height: 100%;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          color: #999;
+          text-align: center;
+          font-size: 14px;
+          padding: 20px;
+        }
+        
+        .message {
+          padding: 12px;
+          border-radius: 12px;
+          max-width: 100%;
+        }
+        
+        .message.user {
+          align-self: flex-end;
+          background: #e1f5fe;
+        }
+        
+        .message.assistant {
+          align-self: flex-start;
+          background: #f0f0f0;
+        }
+        
+        .message-header {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 4px;
+          font-size: 12px;
+        }
+        
+        .message-sender {
+          font-weight: 600;
+        }
+        
+        .message-time {
+          color: #777;
+        }
+        
+        .message-text {
+          font-size: 14px;
+          line-height: 1.4;
+          margin-bottom: 8px;
+        }
+        
+        .message-audio-player {
+          width: 100%;
+          height: 36px;
+          border-radius: 8px;
+        }
+      `}</style>
     </div>
   );
 } 

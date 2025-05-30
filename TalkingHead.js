@@ -13,6 +13,7 @@ export default function TalkingHead() {
   const animationFrameRef = useRef(null);
   const animationTimeoutRef = useRef(null);
   const blinkIntervalRef = useRef(null); // New ref for eye blinking
+  const randomMovementIntervalRef = useRef(null);
   const mouthControls = useRef({
     jawOpen: null,
     mouthClose: null,
@@ -20,6 +21,12 @@ export default function TalkingHead() {
     lastUpdateTime: 0,
     targetValue: 0,
     currentValue: 0,
+  });
+  const facialExpressionsRef = useRef({
+    eyeBlink: { left: 0, right: 0, nextBlink: 0 },
+    eyeMovement: { x: 0, y: 0, nextMove: 0 },
+    browMovement: { value: 0, nextMove: 0 },
+    mouthExpression: { value: 0, type: 'neutral', nextChange: 0 },
   });
 
   useEffect(() => {
@@ -35,7 +42,7 @@ export default function TalkingHead() {
         
         // Setup scene
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xf5f5f5);
+        scene.background = new THREE.Color(0x121212); // Darker background for video call feel
         
         // Setup camera
         camera = new THREE.PerspectiveCamera(45, containerRef.current.clientWidth / containerRef.current.clientHeight, 0.1, 1000);
@@ -829,16 +836,136 @@ export default function TalkingHead() {
   }, []);
   
   return (
-    <div 
-      ref={containerRef} 
-      style={{ 
-        width: '80%',
-        height: '400px',
-        margin: '30px auto',
-        borderRadius: '12px',
-        overflow: 'hidden',
-        backgroundColor: '#f5f5f5'
-      }}
-    />
+    <div className="video-call-container">
+      <div className="video-call-frame">
+        <div className="video-call-header">
+          <div className="video-call-indicator">
+            <span className="recording-dot"></span>
+            Live Call
+          </div>
+          <div className="video-call-timer">00:00</div>
+        </div>
+        
+        <div 
+          ref={containerRef} 
+          className="video-call-content"
+        />
+        
+        <div className="video-call-controls">
+          <button className="control-button mute-button">
+            <span className="control-icon">🔇</span>
+          </button>
+          <button className="control-button end-call">
+            <span className="control-icon">📞</span>
+          </button>
+          <button className="control-button video-button">
+            <span className="control-icon">📹</span>
+          </button>
+        </div>
+      </div>
+      
+      <style jsx>{`
+        .video-call-container {
+          width: 100%;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          margin: 30px 0;
+        }
+        
+        .video-call-frame {
+          width: 80%;
+          max-width: 600px;
+          border-radius: 16px;
+          overflow: hidden;
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+          display: flex;
+          flex-direction: column;
+          background: #1e1e1e;
+          border: 1px solid #333;
+        }
+        
+        .video-call-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 12px 20px;
+          background: #2d2d2d;
+          color: white;
+        }
+        
+        .video-call-indicator {
+          display: flex;
+          align-items: center;
+          font-size: 14px;
+        }
+        
+        .recording-dot {
+          width: 8px;
+          height: 8px;
+          background: #ff3b30;
+          border-radius: 50%;
+          margin-right: 8px;
+          animation: pulse 1.5s infinite;
+        }
+        
+        .video-call-timer {
+          font-size: 14px;
+          font-family: monospace;
+        }
+        
+        .video-call-content {
+          width: 100%;
+          height: 400px;
+          background: #121212;
+        }
+        
+        .video-call-controls {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          padding: 16px 0;
+          background: #2d2d2d;
+          gap: 16px;
+        }
+        
+        .control-button {
+          width: 50px;
+          height: 50px;
+          border-radius: 50%;
+          border: none;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          background: #444;
+          color: white;
+        }
+        
+        .control-button:hover {
+          background: #555;
+        }
+        
+        .end-call {
+          background: #ff3b30;
+          transform: rotate(135deg);
+        }
+        
+        .end-call:hover {
+          background: #ff5146;
+        }
+        
+        .control-icon {
+          font-size: 20px;
+        }
+        
+        @keyframes pulse {
+          0% { opacity: 1; }
+          50% { opacity: 0.5; }
+          100% { opacity: 1; }
+        }
+      `}</style>
+    </div>
   );
 } 
