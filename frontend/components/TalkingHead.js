@@ -1,4 +1,4 @@
-// TalkingHead.js - Component that renders and manages the 3D talking avatar
+
 import { useEffect, useRef } from 'react';
 
 export default function TalkingHead() {
@@ -17,7 +17,7 @@ export default function TalkingHead() {
   const mouthControls = useRef({
     jawOpen: null,
     mouthClose: null,
-    visemes: {}, // Store all viseme morph targets
+    visemes: {}, 
     lastUpdateTime: 0,
     targetValue: 0,
     currentValue: 0,
@@ -36,26 +36,26 @@ export default function TalkingHead() {
     
     const init = async () => {
       try {
-        // Dynamically import Three.js (only in browser)
+        
         const THREE = await import('three');
         const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader');
         
-        // Setup scene
+        
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0xf5f5f5);
         
-        // Setup camera
+        
         camera = new THREE.PerspectiveCamera(45, containerRef.current.clientWidth / containerRef.current.clientHeight, 0.1, 1000);
         camera.position.set(0, 1.6, 1.8);
         camera.lookAt(0, 1.4, 0);
         
-        // Setup renderer
+        
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
         containerRef.current.appendChild(renderer.domElement);
         
-        // Setup lighting
+        
         const ambientLight = new THREE.AmbientLight(0xffffff, 1);
         scene.add(ambientLight);
         
@@ -63,18 +63,18 @@ export default function TalkingHead() {
         directionalLight.position.set(0, 1, 1);
         scene.add(directionalLight);
         
-        // Setup Audio Context for analysis
+        
         try {
           if (window.AudioContext || window.webkitAudioContext) {
             audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
             audioAnalyserRef.current = audioContextRef.current.createAnalyser();
-            audioAnalyserRef.current.fftSize = 256; // Smaller FFT size for better performance
+            audioAnalyserRef.current.fftSize = 256; 
           }
         } catch (err) {
           console.warn('Audio Context could not be created:', err);
         }
         
-        // Load model
+        
         const loader = new GLTFLoader();
         console.log('Loading 3D model from path:', '/talkinghead/avatars/brunette.glb');
         
@@ -86,24 +86,24 @@ export default function TalkingHead() {
             scene.add(model);
             modelRef.current = model;
             
-            // Log all bones to help identify mouth parts
+            
             console.log('Bone structure:');
             model.traverse((object) => {
               if (object.isBone || object.isSkinnedMesh || object.isMesh) {
                 console.log(`Found object: ${object.name}, type: ${object.type}`);
                 
-                // Look for morph targets (blendshapes) for mouth/face
+                
                 if (object.morphTargetDictionary) {
                   console.log('Found morph targets:', Object.keys(object.morphTargetDictionary));
                   
-                  // Store references to mouth morphs if available
+                  
                   const morphDict = object.morphTargetDictionary;
                   if (morphDict) {
-                    // Check for common morph target names used for mouth/speech
+                    
                     const jawOpenNames = ['jawOpen', 'mouthOpen', 'JawOpen', 'MouthOpen', 'jaw_open'];
                     const mouthCloseNames = ['mouthClose', 'MouthClose', 'mouth_close'];
                     
-                    // Store all viseme morph targets
+                    
                     for (const key in morphDict) {
                       if (key.startsWith('viseme_')) {
                         console.log(`Found viseme morph: ${key}`);
@@ -140,7 +140,6 @@ export default function TalkingHead() {
                 }
               }
               
-              // Find jaw bone
               const name = (object.name || '').toLowerCase();
               if (
                 name.includes('jaw') || 
@@ -154,42 +153,35 @@ export default function TalkingHead() {
               }
             });
             
-            // Center model
             const box = new THREE.Box3().setFromObject(model);
             const center = box.getCenter(new THREE.Vector3());
             model.position.x = -center.x;
-            model.position.y = -center.y + 0.1; // Slight offset upward
+            model.position.y = -center.y + 0.1; 
             model.position.z = -center.z;
             
-            // Optional: adjust scale if needed
-            model.scale.set(1.6, 1.6, 1.6); // Slightly larger model
+            model.scale.set(1.6, 1.6, 1.6); 
             
-            // Setup animations if available
             if (gltf.animations && gltf.animations.length > 0) {
               mixer = new THREE.AnimationMixer(model);
-              mixerRef.current = mixer; // Store mixer reference
+              mixerRef.current = mixer; 
               const clip = gltf.animations[0];
               const action = mixer.clipAction(clip);
               action.play();
             }
             
-            // Start animation loop
             clock = new THREE.Clock();
             animate();
             
-            // Hook up audio listeners for global audio element
             const setupAudioListener = () => {
               const audioElements = document.querySelectorAll('audio');
               if (audioElements.length > 0) {
                 console.log('Found audio elements:', audioElements.length);
                 
                 audioElements.forEach(audio => {
-                  // Remove previous listeners if any
                   audio.removeEventListener('play', onAudioPlay);
                   audio.removeEventListener('pause', onAudioPause);
                   audio.removeEventListener('ended', onAudioEnded);
                   
-                  // Add new listeners
                   audio.addEventListener('play', onAudioPlay);
                   audio.addEventListener('pause', onAudioPause);
                   audio.addEventListener('ended', onAudioEnded);
@@ -197,19 +189,15 @@ export default function TalkingHead() {
                   console.log('Added event listeners to audio element');
                 });
               } else {
-                // If no audio elements found yet, try again later
                 setTimeout(setupAudioListener, 1000);
               }
             };
             
-            // Try to find audio elements once the DOM is loaded
             setupAudioListener();
             
-            // Expose speaking function to window
             window.speakWithAudio = (audioData) => {
               console.log('Speaking with audio data, length:', audioData?.length || 0);
               
-              // Cancel any previous animation
               stopAllAnimations();
               
               if (!audioData || audioData.length === 0) {
@@ -217,14 +205,10 @@ export default function TalkingHead() {
                 return;
               }
               
-              // Set a flag indicating we're animating
               isAnimatingRef.current = true;
               
-              // Start a pattern-based animation since we can't reliably decode the audio
               startPatternBasedAnimation(audioData);
               
-              // Set a timeout to stop the animation after estimated audio duration
-              // Estimate: ~44100 samples per second for audio (rough estimate)
               const estimatedDuration = (audioData.length / 44100) * 1000;
               console.log('Estimated audio duration:', estimatedDuration, 'ms');
               
@@ -235,14 +219,12 @@ export default function TalkingHead() {
               animationTimeoutRef.current = setTimeout(() => {
                 console.log('Animation timeout reached, stopping animation');
                 stopAllAnimations();
-              }, estimatedDuration + 500); // Add small buffer
+              }, estimatedDuration + 500); 
             };
             
-            // New function to process viseme data from socket
             window.processVisemeData = (data) => {
               console.log('Processing viseme data:', data);
               
-              // Cancel any previous animation
               stopAllAnimations();
               
               if (!data || !data.visemes || data.visemes.length === 0) {
@@ -250,11 +232,9 @@ export default function TalkingHead() {
                 return;
               }
               
-              // Start viseme-based animation
               startVisemeBasedAnimation(data.visemes, data.duration || 3000);
             };
             
-            // Start random eye blinking
             startRandomEyeBlink();
           },
           (progress) => {
@@ -266,7 +246,6 @@ export default function TalkingHead() {
           }
         );
         
-        // Animation loop for rendering
         function animate() {
           requestAnimationFrame(animate);
           
@@ -277,7 +256,6 @@ export default function TalkingHead() {
           renderer.render(scene, camera);
         }
         
-        // Handle window resize
         const handleResize = () => {
           if (!containerRef.current) return;
           
@@ -288,7 +266,6 @@ export default function TalkingHead() {
         
         window.addEventListener('resize', handleResize);
         
-        // Audio event handlers
         function onAudioPlay(e) {
           console.log('Audio playback started');
           if (!isAnimatingRef.current) {
@@ -307,7 +284,6 @@ export default function TalkingHead() {
           stopAllAnimations();
         }
         
-        // Stop all animations and reset mouth state
         function stopAllAnimations() {
           isAnimatingRef.current = false;
           
@@ -324,9 +300,7 @@ export default function TalkingHead() {
           resetMouthState();
         }
         
-        // Reset all mouth controls to default state
         function resetMouthState() {
-          // Reset all viseme weights
           for (const key in mouthControls.current.visemes) {
             const viseme = mouthControls.current.visemes[key];
             if (viseme.mesh && viseme.mesh.morphTargetInfluences) {
@@ -334,7 +308,6 @@ export default function TalkingHead() {
             }
           }
           
-          // Reset jaw open
           if (mouthControls.current.jawOpen) {
             const mesh = mouthControls.current.jawOpen.mesh;
             const index = mouthControls.current.jawOpen.index;
@@ -343,7 +316,6 @@ export default function TalkingHead() {
             }
           }
           
-          // Reset mouth close
           if (mouthControls.current.mouthClose) {
             const mesh = mouthControls.current.mouthClose.mesh;
             const index = mouthControls.current.mouthClose.index;
@@ -352,7 +324,6 @@ export default function TalkingHead() {
             }
           }
           
-          // Reset jaw bone rotation
           if (jawBoneRef.current && jawBoneRef.current.originalRotation) {
             jawBoneRef.current.rotation.x = jawBoneRef.current.originalRotation.x;
             jawBoneRef.current.rotation.y = jawBoneRef.current.originalRotation.y;
@@ -360,23 +331,20 @@ export default function TalkingHead() {
           }
         }
         
-        // Start pattern-based animation (since audio decoding is failing)
         function startPatternBasedAnimation(audioData) {
           const patternConfig = {
             startTime: Date.now(),
-            wordDuration: 300, // Average word duration in ms
-            pauseDuration: 100, // Average pause between words
-            syllableCount: Math.ceil(audioData.length / 8000), // Rough estimate of syllables based on audio length
+            wordDuration: 300, 
+            pauseDuration: 100, 
+            syllableCount: Math.ceil(audioData.length / 8000), 
             currentSyllable: 0
           };
           
           console.log('Starting pattern-based animation with estimated syllables:', patternConfig.syllableCount);
           
-          // Start the animation loop
           animatePatternBasedLipSync(patternConfig);
         }
         
-        // Pattern-based lip sync animation that doesn't rely on audio decoding
         function animatePatternBasedLipSync(pattern) {
           if (!isAnimatingRef.current) {
             resetMouthState();
@@ -393,29 +361,23 @@ export default function TalkingHead() {
           let openValue;
           
           if (cyclePosition < 1) {
-            // Reduce the sine wave amplitude for smaller mouth movements
-            openValue = Math.sin(cyclePosition * Math.PI) * 0.5; // Reduced from 0.8
+            openValue = Math.sin(cyclePosition * Math.PI) * 0.5; 
           } else {
             openValue = 0;
           }
           
-          // Apply a bit of random variation
           const variation = Math.random() * 0.1;
           openValue = Math.max(0, Math.min(1, openValue + variation));
           
-          // Apply to visemes based on openness
           applyVisemesBasedOnOpenness(openValue);
           
-          // Continue animation
           animationFrameRef.current = requestAnimationFrame(() => {
             animatePatternBasedLipSync(pattern);
           });
         }
         
-        // Start real-time audio-based lip sync animation using AudioContext API
         function startLipSyncAnimation() {
           if (!audioContextRef.current || !audioAnalyserRef.current) {
-            // Fallback to pattern-based animation if audio context not available
             console.log('No AudioContext available, using pattern-based animation');
             startPatternBasedAnimation(new Uint8Array(10000));
             return;
@@ -424,7 +386,6 @@ export default function TalkingHead() {
           try {
             const audioElements = document.querySelectorAll('audio');
             if (audioElements.length > 0) {
-              // If we already have a source, disconnect it
               if (audioSourceRef.current) {
                 try {
                   audioSourceRef.current.disconnect();
@@ -433,30 +394,24 @@ export default function TalkingHead() {
                 }
               }
               
-              // Create a media element source from the audio element
               audioSourceRef.current = audioContextRef.current.createMediaElementSource(audioElements[0]);
               audioSourceRef.current.connect(audioAnalyserRef.current);
               audioAnalyserRef.current.connect(audioContextRef.current.destination);
               
-              // Configure analyzer
               audioAnalyserRef.current.fftSize = 256;
               audioAnalyserRef.current.smoothingTimeConstant = 0.8;
               
-              // Start the animation loop
               animateAudioBasedLipSync();
             } else {
               console.warn('No audio elements found for lip sync');
-              // Fallback to pattern-based animation
               startPatternBasedAnimation(new Uint8Array(10000));
             }
           } catch (error) {
             console.error('Error setting up audio analysis:', error);
-            // Fallback to pattern-based animation
             startPatternBasedAnimation(new Uint8Array(10000));
           }
         }
         
-        // Real-time audio-based lip sync animation
         function animateAudioBasedLipSync() {
           if (!isAnimatingRef.current || !audioAnalyserRef.current) {
             resetMouthState();
@@ -464,13 +419,10 @@ export default function TalkingHead() {
           }
           
           try {
-            // Get frequency data
             const bufferLength = audioAnalyserRef.current.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
             audioAnalyserRef.current.getByteFrequencyData(dataArray);
             
-            // Calculate average amplitude, focusing on speech frequencies (500-2000 Hz)
-            // Approximate the frequency range based on fftSize and sample rate
             const sampleRate = audioContextRef.current.sampleRate || 44100;
             const binSize = sampleRate / (audioAnalyserRef.current.fftSize * 2);
             
@@ -485,80 +437,62 @@ export default function TalkingHead() {
               count++;
             }
             
-            // Normalize to 0-1 range
             const amplitude = count > 0 ? (sum / count) / 255 : 0;
             
-            // Apply to visemes based on amplitude
             applyVisemesBasedOnOpenness(amplitude);
             
-            // Continue animation
             animationFrameRef.current = requestAnimationFrame(animateAudioBasedLipSync);
           } catch (error) {
             console.error('Error in audio analysis:', error);
-            // Fallback to pattern-based animation
             startPatternBasedAnimation(new Uint8Array(10000));
           }
         }
         
-        // Apply viseme weights based on mouth openness value
         function applyVisemesBasedOnOpenness(openValue) {
-          // Reset all viseme weights first
           for (const key in mouthControls.current.visemes) {
             mouthControls.current.visemes[key].weight = 0;
           }
           
-          // Set visemes based on openness value with reduced weights
           if (openValue < 0.1) {
-            // Closed mouth
-            setVisemeWeight('viseme_sil', 0.8); // Reduced from 1.0
+            setVisemeWeight('viseme_sil', 0.8); 
             setVisemeWeight('viseme_PP', 0.2);
           } else if (openValue < 0.3) {
-            // Slightly open
-            setVisemeWeight('viseme_PP', 0.4); // Reduced from 0.5
-            setVisemeWeight('viseme_FF', 0.4); // Reduced from 0.5
-            setVisemeWeight('viseme_TH', 0.2); // Reduced from 0.3
+            setVisemeWeight('viseme_PP', 0.4); 
+            setVisemeWeight('viseme_FF', 0.4); 
+            setVisemeWeight('viseme_TH', 0.2); 
           } else if (openValue < 0.5) {
-            // Medium open
-            setVisemeWeight('viseme_DD', 0.2); // Reduced from 0.3
-            setVisemeWeight('viseme_kk', 0.2); // Reduced from 0.3
-            setVisemeWeight('viseme_CH', 0.3); // Reduced from 0.4
-            setVisemeWeight('viseme_E', 0.4); // Reduced from 0.6
+            setVisemeWeight('viseme_DD', 0.2); 
+            setVisemeWeight('viseme_kk', 0.2); 
+            setVisemeWeight('viseme_CH', 0.3); 
+            setVisemeWeight('viseme_E', 0.4); 
           } else if (openValue < 0.7) {
-            // More open
-            setVisemeWeight('viseme_aa', 0.5); // Reduced from 0.7
-            setVisemeWeight('viseme_E', 0.2); // Reduced from 0.3
+            setVisemeWeight('viseme_aa', 0.5); 
+            setVisemeWeight('viseme_E', 0.2); 
           } else {
-            // Wide open
-            setVisemeWeight('viseme_aa', 0.6); // Reduced from 1.0
-            setVisemeWeight('viseme_O', 0.2); // Reduced from 0.3
+            setVisemeWeight('viseme_aa', 0.6); 
+            setVisemeWeight('viseme_O', 0.2); 
           }
           
-          // Apply all viseme weights with smooth interpolation
           for (const key in mouthControls.current.visemes) {
             const viseme = mouthControls.current.visemes[key];
             if (viseme.mesh && viseme.mesh.morphTargetInfluences) {
               const currentWeight = viseme.mesh.morphTargetInfluences[viseme.index] || 0;
               const targetWeight = viseme.weight || 0;
-              // Smooth interpolation (LERP)
               const newWeight = currentWeight + (targetWeight - currentWeight) * 0.3;
               viseme.mesh.morphTargetInfluences[viseme.index] = newWeight;
             }
           }
           
-          // Also apply to jawOpen as fallback with reduced value
           if (mouthControls.current.jawOpen) {
             const mesh = mouthControls.current.jawOpen.mesh;
             const index = mouthControls.current.jawOpen.index;
             if (mesh && mesh.morphTargetInfluences) {
               const current = mesh.morphTargetInfluences[index] || 0;
-              // Scale down the target value for less opening
-              const target = openValue * 0.6; // Added multiplier to reduce opening
-              // Smooth interpolation
+              const target = openValue * 0.6; 
               mesh.morphTargetInfluences[index] = current + (target - current) * 0.3;
             }
           }
           
-          // Apply to jaw bone rotation as well with reduced rotation
           if (jawBoneRef.current) {
             const jawBone = jawBoneRef.current;
             const originalRotation = jawBone.originalRotation || { 
@@ -567,12 +501,10 @@ export default function TalkingHead() {
               z: jawBone.rotation.z 
             };
             
-            // Store original rotation if not already saved
             if (!jawBone.originalRotation) {
               jawBone.originalRotation = originalRotation;
             }
             
-            // Apply rotation based on openness with reduced values
             const current = {
               x: jawBone.rotation.x,
               y: jawBone.rotation.y,
@@ -580,19 +512,17 @@ export default function TalkingHead() {
             };
             
             const target = {
-              x: originalRotation.x + openValue * 0.1, // Reduced from 0.2
+              x: originalRotation.x + openValue * 0.1, 
               y: originalRotation.y,
               z: originalRotation.z
             };
             
-            // Smooth interpolation
             jawBone.rotation.x = current.x + (target.x - current.x) * 0.3;
             jawBone.rotation.y = current.y + (target.y - current.y) * 0.3;
             jawBone.rotation.z = current.z + (target.z - current.z) * 0.3;
           }
         }
         
-        // Helper to set viseme weight if it exists
         function setVisemeWeight(visemeName, weight) {
           if (mouthControls.current.visemes[visemeName]) {
             mouthControls.current.visemes[visemeName].weight = weight;
@@ -658,64 +588,56 @@ export default function TalkingHead() {
               const visemeKey = `viseme_${currentViseme}`;
               
               if (mouthControls.current.visemes[visemeKey]) {
-                // Reduce the viseme weight for more subtle movement
-                mouthControls.current.visemes[visemeKey].weight = 0.7; // Reduced from 1.0
+                mouthControls.current.visemes[visemeKey].weight = 0.7; 
                 
-                // For certain visemes, add facial expressions with reduced values
                 if (['aa', 'O'].includes(currentViseme)) {
-                  // Wide open mouth for these vowels, but less than before
                   if (mouthControls.current.jawOpen) {
                     const mesh = mouthControls.current.jawOpen.mesh;
                     const index = mouthControls.current.jawOpen.index;
                     if (mesh && mesh.morphTargetInfluences) {
-                      mesh.morphTargetInfluences[index] = 0.5; // Reduced from 0.8
+                      mesh.morphTargetInfluences[index] = 0.5; 
                     }
                   }
                 } else if (['E', 'I'].includes(currentViseme)) {
-                  // Slightly open mouth for these vowels, reduced
                   if (mouthControls.current.jawOpen) {
                     const mesh = mouthControls.current.jawOpen.mesh;
                     const index = mouthControls.current.jawOpen.index;
                     if (mesh && mesh.morphTargetInfluences) {
-                      mesh.morphTargetInfluences[index] = 0.3; // Reduced from 0.5
+                      mesh.morphTargetInfluences[index] = 0.3; 
                     }
                   }
                 }
                 
-                // Keep the random facial movements
                 if (Math.random() > 0.9) {
-                  // ... existing random expression code ...
+                  
                 }
               }
             }
             
-            // Apply all viseme weights
+            
             for (const key in mouthControls.current.visemes) {
               const viseme = mouthControls.current.visemes[key];
               if (viseme.mesh && viseme.mesh.morphTargetInfluences) {
                 const currentWeight = viseme.mesh.morphTargetInfluences[viseme.index] || 0;
                 const targetWeight = viseme.weight || 0;
-                // Smooth interpolation
                 const newWeight = currentWeight + (targetWeight - currentWeight) * 0.3;
                 viseme.mesh.morphTargetInfluences[viseme.index] = newWeight;
               }
             }
             
-            // Continue if not complete
             if (progress < 1) {
               animationFrameRef.current = requestAnimationFrame(animateVisemes);
             } else {
-              // Animation complete
               console.log('Viseme animation complete');
               resetMouthState();
               isAnimatingRef.current = false;
             }
           }
           
-          // Start the animation
+          
           animateVisemes();
           
-          // Safety timeout
+          
           if (animationTimeoutRef.current) {
             clearTimeout(animationTimeoutRef.current);
           }
@@ -733,7 +655,7 @@ export default function TalkingHead() {
     
     init();
     
-    // Cleanup
+    
     return () => {
       if (renderer) {
         renderer.dispose();
@@ -742,7 +664,7 @@ export default function TalkingHead() {
         }
       }
       
-      // Disconnect audio source if exists
+      
       if (audioSourceRef.current) {
         try {
           audioSourceRef.current.disconnect();
@@ -759,7 +681,7 @@ export default function TalkingHead() {
         clearTimeout(animationTimeoutRef.current);
       }
       
-      // Remove event listeners from audio elements
+      
       const audioElements = document.querySelectorAll('audio');
       audioElements.forEach(audio => {
         audio.removeEventListener('play', onAudioPlay);
@@ -770,7 +692,7 @@ export default function TalkingHead() {
       window.removeEventListener('resize', handleResize);
       window.speakWithAudio = null;
       
-      // Add these to cleanup
+      
       if (blinkIntervalRef.current) {
         clearInterval(blinkIntervalRef.current);
       }
@@ -796,4 +718,5 @@ export default function TalkingHead() {
       }}
     />
   );
+        
 } 
