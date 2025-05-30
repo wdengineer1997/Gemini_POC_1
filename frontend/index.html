@@ -6,6 +6,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gemini Voice Chat</title>
     <link rel="stylesheet" href="styles/globals.css">
+    <!-- Import map for TalkingHead dependencies -->
+    <script type="importmap">
+    { "imports":
+      {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+    </script>
+    
+    <!-- Three.js and related libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <!-- Simple TalkingHead implementation -->
+    <script src="/public/simpletalkinghead.js"></script>
+    
+    <!-- Socket.io client library -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      console.log('HTML document loading...');
+      document.addEventListener('DOMContentLoaded', () => {
+        console.log('DOM fully loaded');
+      });
+    </script>
   </head>
   <body>
     <div class="main-container">
@@ -44,13 +70,13 @@
           <div class="chat-header">
             💬 Conversation
           </div>
-          <div id="chat" class="chat-messages">
+          <!-- <div id="chat" class="chat-messages">
             <div class="empty-state">
               <div class="empty-icon">🗣️</div>
               <p class="empty-title">Start a conversation by clicking the microphone</p>
               <p class="empty-subtitle">Your voice will be converted to text and sent to Gemini</p>
             </div>
-          </div>
+          </div> -->
         </div>
 
         <!-- Controls -->

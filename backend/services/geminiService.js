@@ -34,25 +34,30 @@ function createWavHeader(dataLength, options = {}) {
   return buffer;
 }
 
-export async function generateDirectAudioResponse(audioData, systemInstruction = "", apiKey = null, mimeType = "audio/webm") {
+export async function generateDirectAudioResponse(audioData, systemInstruction = "", apiKey = null, mimeType = "audio/webm", textMessage = null) {
   try {
-    // Validate input
-    if (!audioData) {
+    // Validate input - either audioData or textMessage is required
+    if (!audioData && !textMessage) {
       return { 
-        error: "'audioData' is required",
-        text: "Please provide audio data"
+        error: "Either 'audioData' or 'textMessage' is required",
+        text: "Please provide audio data or a text message"
       };
     }
     
-    // Additional validation for audioData length
-    if (audioData.length < 500) {
-      return {
-        error: "Audio data too short",
-        text: "The recorded audio is too short. Please try recording a longer message."
-      };
+    // Log what we're processing
+    if (audioData) {
+      console.log(`Processing audio data (${audioData.length} characters) with MIME type: ${mimeType}`);
+      
+      // Additional validation for audioData length
+      if (audioData.length < 500) {
+        return {
+          error: "Audio data too short",
+          text: "The recorded audio is too short. Please try recording a longer message."
+        };
+      }
+    } else {
+      console.log(`Processing text message: "${textMessage}"`);
     }
-    
-    console.log(`Processing audio data (${audioData.length} characters) with MIME type: ${mimeType}`);
     
     // Create the AI client with the provided API key or fall back to env variable
     const ai = new GoogleGenAI({ 
@@ -142,39 +147,63 @@ export async function generateDirectAudioResponse(audioData, systemInstruction =
       },
     });
 
-    console.log("Sending audio data to Gemini Live API");
+    // Send either audio data or text message
+    if (audioData) {
+      console.log("Sending audio data to Gemini Live API");
 
-    // Try using the right sending method based on the reference code
-    try {
-      // Use clientContent approach
-      session.sendClientContent({
-        turns: [
-          {
-            role: "user", 
-            parts: [
-              {
-                inlineData: {
-                  mimeType: mimeType, 
-                  data: audioData
+      // Try using the right sending method based on the reference code
+      try {
+        // Use clientContent approach
+        session.sendClientContent({
+          turns: [
+            {
+              role: "user", 
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: mimeType, 
+                    data: audioData
+                  }
                 }
-              }
-            ]
+              ]
+            }
+          ],
+          turnComplete: true
+        });
+        console.log("Audio data sent via sendClientContent");
+      } catch (error) {
+        console.error("Error with sendClientContent, trying fallback method:", error);
+        
+        // Fallback to realtimeInput if clientContent fails
+        session.sendRealtimeInput({
+          audio: {
+            data: audioData,
+            mimeType: mimeType
           }
-        ],
-        turnComplete: true
-      });
-      console.log("Audio data sent via sendClientContent");
-    } catch (error) {
-      console.error("Error with sendClientContent, trying fallback method:", error);
+        });
+        console.log("Audio data sent via sendRealtimeInput");
+      }
+    } else if (textMessage) {
+      console.log("Sending text message to Gemini Live API");
       
-      // Fallback to realtimeInput if clientContent fails
-      session.sendRealtimeInput({
-        audio: {
-          data: audioData,
-          mimeType: mimeType
-        }
-      });
-      console.log("Audio data sent via sendRealtimeInput");
+      try {
+        // Send text message
+        session.sendClientContent({
+          turns: [
+            {
+              role: "user", 
+              parts: [
+                { text: textMessage }
+              ]
+            }
+          ],
+          turnComplete: true
+        });
+        console.log("Text message sent via sendClientContent");
+      } catch (error) {
+        console.error("Error sending text message:", error);
+        throw error;
+      }
     }
 
     // Wait for response with timeout
