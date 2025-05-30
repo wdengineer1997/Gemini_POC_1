@@ -385,21 +385,17 @@ export default function TalkingHead() {
           
           const now = Date.now();
           const elapsed = now - pattern.startTime;
-          const syllableDuration = pattern.wordDuration / 2; // Duration of each syllable
+          const syllableDuration = pattern.wordDuration / 2;
           const cycleDuration = syllableDuration + pattern.pauseDuration;
           
-          // Calculate the current position in the syllable cycle
           const cyclePosition = (elapsed % cycleDuration) / syllableDuration;
           
-          // Value between 0 and 1 representing mouth openness
           let openValue;
           
           if (cyclePosition < 1) {
-            // Opening and closing mouth for syllable
-            // Use sine wave for smooth motion (half cycle)
-            openValue = Math.sin(cyclePosition * Math.PI) * 0.8;
+            // Reduce the sine wave amplitude for smaller mouth movements
+            openValue = Math.sin(cyclePosition * Math.PI) * 0.5; // Reduced from 0.8
           } else {
-            // Pause between syllables
             openValue = 0;
           }
           
@@ -511,30 +507,30 @@ export default function TalkingHead() {
             mouthControls.current.visemes[key].weight = 0;
           }
           
-          // Set visemes based on openness value
+          // Set visemes based on openness value with reduced weights
           if (openValue < 0.1) {
             // Closed mouth
-            setVisemeWeight('viseme_sil', 1.0);
+            setVisemeWeight('viseme_sil', 0.8); // Reduced from 1.0
             setVisemeWeight('viseme_PP', 0.2);
           } else if (openValue < 0.3) {
             // Slightly open
-            setVisemeWeight('viseme_PP', 0.5);
-            setVisemeWeight('viseme_FF', 0.5);
-            setVisemeWeight('viseme_TH', 0.3);
+            setVisemeWeight('viseme_PP', 0.4); // Reduced from 0.5
+            setVisemeWeight('viseme_FF', 0.4); // Reduced from 0.5
+            setVisemeWeight('viseme_TH', 0.2); // Reduced from 0.3
           } else if (openValue < 0.5) {
             // Medium open
-            setVisemeWeight('viseme_DD', 0.3);
-            setVisemeWeight('viseme_kk', 0.3);
-            setVisemeWeight('viseme_CH', 0.4);
-            setVisemeWeight('viseme_E', 0.6);
+            setVisemeWeight('viseme_DD', 0.2); // Reduced from 0.3
+            setVisemeWeight('viseme_kk', 0.2); // Reduced from 0.3
+            setVisemeWeight('viseme_CH', 0.3); // Reduced from 0.4
+            setVisemeWeight('viseme_E', 0.4); // Reduced from 0.6
           } else if (openValue < 0.7) {
             // More open
-            setVisemeWeight('viseme_aa', 0.7);
-            setVisemeWeight('viseme_E', 0.3);
+            setVisemeWeight('viseme_aa', 0.5); // Reduced from 0.7
+            setVisemeWeight('viseme_E', 0.2); // Reduced from 0.3
           } else {
             // Wide open
-            setVisemeWeight('viseme_aa', 1.0);
-            setVisemeWeight('viseme_O', 0.3);
+            setVisemeWeight('viseme_aa', 0.6); // Reduced from 1.0
+            setVisemeWeight('viseme_O', 0.2); // Reduced from 0.3
           }
           
           // Apply all viseme weights with smooth interpolation
@@ -549,19 +545,20 @@ export default function TalkingHead() {
             }
           }
           
-          // Also apply to jawOpen as fallback
+          // Also apply to jawOpen as fallback with reduced value
           if (mouthControls.current.jawOpen) {
             const mesh = mouthControls.current.jawOpen.mesh;
             const index = mouthControls.current.jawOpen.index;
             if (mesh && mesh.morphTargetInfluences) {
               const current = mesh.morphTargetInfluences[index] || 0;
-              const target = openValue;
+              // Scale down the target value for less opening
+              const target = openValue * 0.6; // Added multiplier to reduce opening
               // Smooth interpolation
               mesh.morphTargetInfluences[index] = current + (target - current) * 0.3;
             }
           }
           
-          // Apply to jaw bone rotation as well
+          // Apply to jaw bone rotation as well with reduced rotation
           if (jawBoneRef.current) {
             const jawBone = jawBoneRef.current;
             const originalRotation = jawBone.originalRotation || { 
@@ -575,7 +572,7 @@ export default function TalkingHead() {
               jawBone.originalRotation = originalRotation;
             }
             
-            // Apply rotation based on openness
+            // Apply rotation based on openness with reduced values
             const current = {
               x: jawBone.rotation.x,
               y: jawBone.rotation.y,
@@ -583,7 +580,7 @@ export default function TalkingHead() {
             };
             
             const target = {
-              x: originalRotation.x + openValue * 0.2,
+              x: originalRotation.x + openValue * 0.1, // Reduced from 0.2
               y: originalRotation.y,
               z: originalRotation.z
             };
@@ -635,12 +632,12 @@ export default function TalkingHead() {
         }
         
         function startVisemeBasedAnimation(visemes, duration) {
+          console.log(`Starting viseme animation with ${visemes.length} visemes over ${duration}ms`);
+          
           isAnimatingRef.current = true;
-          
           const startTime = Date.now();
-          const visemeCount = visemes.length;
           
-          const animateVisemes = () => {
+          function animateVisemes() {
             if (!isAnimatingRef.current) {
               resetMouthState();
               return;
@@ -650,7 +647,7 @@ export default function TalkingHead() {
             const elapsed = now - startTime;
             const progress = Math.min(1, elapsed / duration);
             
-            const visemeIndex = Math.min(Math.floor(progress * visemeCount), visemeCount - 1);
+            const visemeIndex = Math.min(Math.floor(progress * visemes.length), visemes.length - 1);
             const currentViseme = visemes[visemeIndex];
             
             for (const key in mouthControls.current.visemes) {
@@ -659,15 +656,35 @@ export default function TalkingHead() {
             
             if (currentViseme) {
               const visemeKey = `viseme_${currentViseme}`;
-              if (mouthControls.current.visemes[visemeKey]) {
-                mouthControls.current.visemes[visemeKey].weight = 1.0;
-              }
               
-              if (['aa', 'E', 'I', 'O', 'U'].includes(currentViseme) && mouthControls.current.jawOpen) {
-                const mesh = mouthControls.current.jawOpen.mesh;
-                const index = mouthControls.current.jawOpen.index;
-                if (mesh && mesh.morphTargetInfluences) {
-                  mesh.morphTargetInfluences[index] = 0.7;
+              if (mouthControls.current.visemes[visemeKey]) {
+                // Reduce the viseme weight for more subtle movement
+                mouthControls.current.visemes[visemeKey].weight = 0.7; // Reduced from 1.0
+                
+                // For certain visemes, add facial expressions with reduced values
+                if (['aa', 'O'].includes(currentViseme)) {
+                  // Wide open mouth for these vowels, but less than before
+                  if (mouthControls.current.jawOpen) {
+                    const mesh = mouthControls.current.jawOpen.mesh;
+                    const index = mouthControls.current.jawOpen.index;
+                    if (mesh && mesh.morphTargetInfluences) {
+                      mesh.morphTargetInfluences[index] = 0.5; // Reduced from 0.8
+                    }
+                  }
+                } else if (['E', 'I'].includes(currentViseme)) {
+                  // Slightly open mouth for these vowels, reduced
+                  if (mouthControls.current.jawOpen) {
+                    const mesh = mouthControls.current.jawOpen.mesh;
+                    const index = mouthControls.current.jawOpen.index;
+                    if (mesh && mesh.morphTargetInfluences) {
+                      mesh.morphTargetInfluences[index] = 0.3; // Reduced from 0.5
+                    }
+                  }
+                }
+                
+                // Keep the random facial movements
+                if (Math.random() > 0.9) {
+                  // ... existing random expression code ...
                 }
               }
             }
@@ -693,9 +710,9 @@ export default function TalkingHead() {
               resetMouthState();
               isAnimatingRef.current = false;
             }
-          };
+          }
           
-          // Start animation
+          // Start the animation
           animateVisemes();
           
           // Safety timeout
@@ -704,6 +721,7 @@ export default function TalkingHead() {
           }
           
           animationTimeoutRef.current = setTimeout(() => {
+            console.log('Viseme animation safety timeout reached');
             resetMouthState();
             isAnimatingRef.current = false;
           }, duration + 500);
