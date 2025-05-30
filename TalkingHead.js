@@ -12,8 +12,7 @@ export default function TalkingHead() {
   const audioSourceRef = useRef(null);
   const animationFrameRef = useRef(null);
   const animationTimeoutRef = useRef(null);
-  const blinkIntervalRef = useRef(null);
-  const randomMovementIntervalRef = useRef(null);
+  const blinkIntervalRef = useRef(null); // New ref for eye blinking
   const mouthControls = useRef({
     jawOpen: null,
     mouthClose: null,
@@ -21,12 +20,6 @@ export default function TalkingHead() {
     lastUpdateTime: 0,
     targetValue: 0,
     currentValue: 0,
-  });
-  const facialExpressionsRef = useRef({
-    eyeBlink: { left: 0, right: 0, nextBlink: 0 },
-    eyeMovement: { x: 0, y: 0, nextMove: 0 },
-    browMovement: { value: 0, nextMove: 0 },
-    mouthExpression: { value: 0, type: 'neutral', nextChange: 0 },
   });
 
   useEffect(() => {
@@ -173,6 +166,9 @@ export default function TalkingHead() {
               action.play();
             }
             
+            // Start random eye blinking
+            startRandomEyeBlink();
+            
             // Start animation loop
             clock = new THREE.Clock();
             animate();
@@ -238,24 +234,21 @@ export default function TalkingHead() {
               }, estimatedDuration + 500); // Add small buffer
             };
             
-            // New function to process viseme data from socket
+            // NEW: Add function to process viseme data from socket
             window.processVisemeData = (data) => {
               console.log('Processing viseme data:', data);
               
-              // Cancel any previous animation
+              // Stop any current animation
               stopAllAnimations();
               
               if (!data || !data.visemes || data.visemes.length === 0) {
-                resetMouthState();
+                console.warn('Invalid viseme data received');
                 return;
               }
               
               // Start viseme-based animation
               startVisemeBasedAnimation(data.visemes, data.duration || 3000);
             };
-            
-            // Start random eye blinking
-            startRandomEyeBlink();
           },
           (progress) => {
             const percent = (progress.loaded / progress.total) * 100;
@@ -360,6 +353,61 @@ export default function TalkingHead() {
           }
         }
         
+        // NEW: Random eye blinking
+        function startRandomEyeBlink() {
+          // Clear any existing interval
+          if (blinkIntervalRef.current) {
+            clearInterval(blinkIntervalRef.current);
+          }
+          
+          // Set an interval for random blinking
+          blinkIntervalRef.current = setInterval(() => {
+            if (Math.random() > 0.3) { // 70% chance to blink when interval is hit
+              triggerEyeBlink();
+            }
+          }, 3000 + Math.random() * 4000); // Random interval between 3-7 seconds
+        }
+        
+        // NEW: Trigger eye blink animation
+        function triggerEyeBlink() {
+          // Find eyes in model
+          modelRef.current.traverse((object) => {
+            if (object.morphTargetDictionary) {
+              const leftBlinkIndex = object.morphTargetDictionary['eyeBlinkLeft'];
+              const rightBlinkIndex = object.morphTargetDictionary['eyeBlinkRight'];
+              
+              if (leftBlinkIndex !== undefined && rightBlinkIndex !== undefined) {
+                // Blink duration (150-250ms)
+                const blinkDuration = 150 + Math.random() * 100;
+                
+                // Close eyes
+                object.morphTargetInfluences[leftBlinkIndex] = 1;
+                object.morphTargetInfluences[rightBlinkIndex] = 1;
+                
+                // Open eyes after duration
+                setTimeout(() => {
+                  // Smooth opening
+                  const startTime = Date.now();
+                  const animateEyeOpen = () => {
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min(1, elapsed / 80); // 80ms for opening
+                    const value = 1 - progress; // 1 to 0
+                    
+                    object.morphTargetInfluences[leftBlinkIndex] = value;
+                    object.morphTargetInfluences[rightBlinkIndex] = value;
+                    
+                    if (progress < 1) {
+                      requestAnimationFrame(animateEyeOpen);
+                    }
+                  };
+                  
+                  animateEyeOpen();
+                }, blinkDuration);
+              }
+            }
+          });
+        }
+        
         // Start pattern-based animation (since audio decoding is failing)
         function startPatternBasedAnimation(audioData) {
           const patternConfig = {
@@ -414,6 +462,132 @@ export default function TalkingHead() {
           animationFrameRef.current = requestAnimationFrame(() => {
             animatePatternBasedLipSync(pattern);
           });
+        }
+        
+        // NEW: Viseme-based animation
+        function startVisemeBasedAnimation(visemes, duration) {
+          console.log(`Starting viseme animation with ${visemes.length} visemes over ${duration}ms`);
+          
+          isAnimatingRef.current = true;
+          const startTime = Date.now();
+          
+          // Animation function
+          function animateVisemes() {
+            if (!isAnimatingRef.current) {
+              resetMouthState();
+              return;
+            }
+            
+            const now = Date.now();
+            const elapsed = now - startTime;
+            const progress = Math.min(1, elapsed / duration);
+            
+            // Get current viseme based on progress
+            const visemeIndex = Math.min(Math.floor(progress * visemes.length), visemes.length - 1);
+            const currentViseme = visemes[visemeIndex];
+            
+            // Reset all viseme weights first
+            for (const key in mouthControls.current.visemes) {
+              mouthControls.current.visemes[key].weight = 0;
+            }
+            
+            // Apply current viseme
+            if (currentViseme) {
+              const visemeKey = `viseme_${currentViseme}`;
+              
+              if (mouthControls.current.visemes[visemeKey]) {
+                // Set weight for this viseme
+                mouthControls.current.visemes[visemeKey].weight = 1.0;
+                
+                // For certain visemes, add facial expressions
+                if (['aa', 'O'].includes(currentViseme)) {
+                  // Wide open mouth for these vowels
+                  if (mouthControls.current.jawOpen) {
+                    const mesh = mouthControls.current.jawOpen.mesh;
+                    const index = mouthControls.current.jawOpen.index;
+                    if (mesh && mesh.morphTargetInfluences) {
+                      mesh.morphTargetInfluences[index] = 0.8;
+                    }
+                  }
+                } else if (['E', 'I'].includes(currentViseme)) {
+                  // Slightly open mouth for these vowels
+                  if (mouthControls.current.jawOpen) {
+                    const mesh = mouthControls.current.jawOpen.mesh;
+                    const index = mouthControls.current.jawOpen.index;
+                    if (mesh && mesh.morphTargetInfluences) {
+                      mesh.morphTargetInfluences[index] = 0.5;
+                    }
+                  }
+                }
+                
+                // Add random facial movements for more realism
+                if (Math.random() > 0.9) {
+                  // Find and apply random facial expression
+                  modelRef.current.traverse((object) => {
+                    if (object.morphTargetDictionary) {
+                      // Possible expressions
+                      const expressions = [
+                        'browInnerUp', 'browOuterUpLeft', 'browOuterUpRight',
+                        'eyeSquintLeft', 'eyeSquintRight'
+                      ];
+                      
+                      // Pick a random expression
+                      const randomExp = expressions[Math.floor(Math.random() * expressions.length)];
+                      const expIndex = object.morphTargetDictionary[randomExp];
+                      
+                      if (expIndex !== undefined) {
+                        // Apply expression briefly
+                        const value = 0.2 + Math.random() * 0.3; // 0.2-0.5 intensity
+                        object.morphTargetInfluences[expIndex] = value;
+                        
+                        // Clear after short delay
+                        setTimeout(() => {
+                          object.morphTargetInfluences[expIndex] = 0;
+                        }, 300 + Math.random() * 200);
+                      }
+                    }
+                  });
+                }
+              }
+            }
+            
+            // Apply all viseme weights with smooth interpolation
+            for (const key in mouthControls.current.visemes) {
+              const viseme = mouthControls.current.visemes[key];
+              if (viseme.mesh && viseme.mesh.morphTargetInfluences) {
+                const currentWeight = viseme.mesh.morphTargetInfluences[viseme.index] || 0;
+                const targetWeight = viseme.weight || 0;
+                
+                // Smooth interpolation (LERP)
+                const newWeight = currentWeight + (targetWeight - currentWeight) * 0.3;
+                viseme.mesh.morphTargetInfluences[viseme.index] = newWeight;
+              }
+            }
+            
+            // Continue if not complete
+            if (progress < 1) {
+              animationFrameRef.current = requestAnimationFrame(animateVisemes);
+            } else {
+              // Animation complete
+              console.log('Viseme animation complete');
+              resetMouthState();
+              isAnimatingRef.current = false;
+            }
+          }
+          
+          // Start the animation
+          animateVisemes();
+          
+          // Safety timeout
+          if (animationTimeoutRef.current) {
+            clearTimeout(animationTimeoutRef.current);
+          }
+          
+          animationTimeoutRef.current = setTimeout(() => {
+            console.log('Viseme animation safety timeout reached');
+            resetMouthState();
+            isAnimatingRef.current = false;
+          }, duration + 500);
         }
         
         // Start real-time audio-based lip sync animation using AudioContext API
@@ -602,112 +776,6 @@ export default function TalkingHead() {
           }
         }
         
-        function startRandomEyeBlink() {
-          if (blinkIntervalRef.current) {
-            clearInterval(blinkIntervalRef.current);
-          }
-          
-          blinkIntervalRef.current = setInterval(() => {
-            if (!isAnimatingRef.current || Math.random() > 0.3) {
-              modelRef.current.traverse((object) => {
-                if (object.morphTargetDictionary) {
-                  if (object.morphTargetDictionary['eyeBlinkLeft'] !== undefined) {
-                    const index = object.morphTargetDictionary['eyeBlinkLeft'];
-                    object.morphTargetInfluences[index] = 1;
-                    
-                    setTimeout(() => {
-                      object.morphTargetInfluences[index] = 0;
-                    }, 150 + Math.random() * 100);
-                  }
-                  
-                  if (object.morphTargetDictionary['eyeBlinkRight'] !== undefined) {
-                    const index = object.morphTargetDictionary['eyeBlinkRight'];
-                    object.morphTargetInfluences[index] = 1;
-                    
-                    setTimeout(() => {
-                      object.morphTargetInfluences[index] = 0;
-                    }, 150 + Math.random() * 100);
-                  }
-                }
-              });
-            }
-          }, 3000 + Math.random() * 4000); 
-        }
-        
-        function startVisemeBasedAnimation(visemes, duration) {
-          isAnimatingRef.current = true;
-          
-          const startTime = Date.now();
-          const visemeCount = visemes.length;
-          
-          const animateVisemes = () => {
-            if (!isAnimatingRef.current) {
-              resetMouthState();
-              return;
-            }
-            
-            const now = Date.now();
-            const elapsed = now - startTime;
-            const progress = Math.min(1, elapsed / duration);
-            
-            const visemeIndex = Math.min(Math.floor(progress * visemeCount), visemeCount - 1);
-            const currentViseme = visemes[visemeIndex];
-            
-            for (const key in mouthControls.current.visemes) {
-              mouthControls.current.visemes[key].weight = 0;
-            }
-            
-            if (currentViseme) {
-              const visemeKey = `viseme_${currentViseme}`;
-              if (mouthControls.current.visemes[visemeKey]) {
-                mouthControls.current.visemes[visemeKey].weight = 1.0;
-              }
-              
-              if (['aa', 'E', 'I', 'O', 'U'].includes(currentViseme) && mouthControls.current.jawOpen) {
-                const mesh = mouthControls.current.jawOpen.mesh;
-                const index = mouthControls.current.jawOpen.index;
-                if (mesh && mesh.morphTargetInfluences) {
-                  mesh.morphTargetInfluences[index] = 0.7;
-                }
-              }
-            }
-            
-            // Apply all viseme weights
-            for (const key in mouthControls.current.visemes) {
-              const viseme = mouthControls.current.visemes[key];
-              if (viseme.mesh && viseme.mesh.morphTargetInfluences) {
-                const currentWeight = viseme.mesh.morphTargetInfluences[viseme.index] || 0;
-                const targetWeight = viseme.weight || 0;
-                // Smooth interpolation
-                const newWeight = currentWeight + (targetWeight - currentWeight) * 0.3;
-                viseme.mesh.morphTargetInfluences[viseme.index] = newWeight;
-              }
-            }
-            
-            // Continue if not complete
-            if (progress < 1) {
-              animationFrameRef.current = requestAnimationFrame(animateVisemes);
-            } else {
-              // Animation complete
-              console.log('Viseme animation complete');
-              resetMouthState();
-              isAnimatingRef.current = false;
-            }
-          };
-          
-          // Start animation
-          animateVisemes();
-          
-          // Safety timeout
-          if (animationTimeoutRef.current) {
-            clearTimeout(animationTimeoutRef.current);
-          }
-          
-          animationTimeoutRef.current = setTimeout(() => {
-            resetMouthState();
-            isAnimatingRef.current = false;
-          }, duration + 500);
-        }
       } catch (error) {
         console.error('Error initializing TalkingHead:', error);
       }
@@ -741,6 +809,11 @@ export default function TalkingHead() {
         clearTimeout(animationTimeoutRef.current);
       }
       
+      // Clear eye blinking interval
+      if (blinkIntervalRef.current) {
+        clearInterval(blinkIntervalRef.current);
+      }
+      
       // Remove event listeners from audio elements
       const audioElements = document.querySelectorAll('audio');
       audioElements.forEach(audio => {
@@ -751,16 +824,6 @@ export default function TalkingHead() {
       
       window.removeEventListener('resize', handleResize);
       window.speakWithAudio = null;
-      
-      // Add these to cleanup
-      if (blinkIntervalRef.current) {
-        clearInterval(blinkIntervalRef.current);
-      }
-      
-      if (randomMovementIntervalRef.current) {
-        clearInterval(randomMovementIntervalRef.current);
-      }
-      
       window.processVisemeData = null;
     };
   }, []);
